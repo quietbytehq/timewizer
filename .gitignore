@@ -1,0 +1,13 @@
+node_modules
+dist
+src-tauri/target
+src-tauri/gen
+*.log
+Schools/
+
+# Playwright
+tests/ui/.results/
+playwright-report/
+
+# Release builds
+release/

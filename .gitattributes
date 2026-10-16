@@ -1,0 +1,9 @@
+# Keep line endings the same on Windows and Linux so builds and tests behave identically.
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.icns binary
+*.xlsx binary
+*.pdf binary
+*.woff2 binary
+*.twz binary

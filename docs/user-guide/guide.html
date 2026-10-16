@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Timewizer: short user guide</title>
+<style>
+@font-face { font-family: Domine; src: url(../../node_modules/@fontsource-variable/domine/files/domine-latin-wght-normal.woff2); font-weight: 400 700; }
+@font-face { font-family: Nunito; src: url(../../node_modules/@fontsource-variable/nunito-sans/files/nunito-sans-latin-wght-normal.woff2); font-weight: 200 900; }
+@page { size: A4; margin: 17mm 17mm 18mm; }
+:root { --ink: #18343F; --accent: #1F6F6B; --amber: #E8A33D; --muted: #5A6468; --cream: #EFE6D8; --line: #DCD0BC; }
+* { box-sizing: border-box; }
+body { font-family: Nunito, "Nunito Sans", sans-serif; color: var(--ink); font-size: 10pt; line-height: 1.45; margin: 0; }
+h1, h2, h3 { font-family: Domine, Georgia, serif; margin: 0; }
+h2 { font-size: 17pt; margin: 0 0 3mm; padding-top: 1mm; border-top: 3px solid var(--amber); }
+h3 { font-size: 12pt; margin: 5mm 0 1.5mm; color: var(--accent); }
+p { margin: 0 0 2.5mm; }
+.eyebrow { font-size: 8pt; letter-spacing: .16em; text-transform: uppercase; font-weight: 700; color: var(--accent); margin-bottom: 1mm; }
+section { break-before: page; }
+section.first { break-before: auto; }
+.cover { height: 250mm; display: flex; flex-direction: column; justify-content: center; break-after: page; }
+.cover img.logo { width: 38mm; }
+.cover h1 { font-size: 40pt; line-height: 1.1; margin: 10mm 0 4mm; }
+.cover p { font-size: 14pt; color: var(--muted); max-width: 125mm; }
+.cover .small { font-size: 9.5pt; margin-top: 40mm; }
+figure { margin: 3mm 0 4mm; break-inside: avoid; }
+figure img { width: 100%; border: 1px solid var(--line); border-radius: 3mm; display: block; }
+figure.crop img { object-fit: cover; object-position: top; }
+figcaption { font-size: 8.5pt; color: var(--muted); margin-top: 1.2mm; }
+ol, ul { margin: 0 0 3mm; padding-left: 6mm; }
+li { margin-bottom: 1.2mm; }
+.tip { background: #F7F1E7; border-left: 3px solid var(--amber); padding: 2.5mm 4mm; border-radius: 0 2mm 2mm 0; margin: 3mm 0; break-inside: avoid; }
+.tip b { color: var(--accent); }
+kbd { font-family: inherit; background: var(--cream); border: 1px solid var(--line); border-radius: 1.2mm; padding: 0 1.6mm; font-size: 9pt; font-weight: 700; }
+table { border-collapse: collapse; width: 100%; margin: 2mm 0 4mm; font-size: 9.5pt; }
+th, td { border: 1px solid var(--line); padding: 1.6mm 2.6mm; text-align: left; vertical-align: top; }
+th { background: var(--cream); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+.dot { display: inline-block; width: 3mm; height: 3mm; border-radius: .8mm; vertical-align: -0.4mm; margin-right: 1mm; border: 2px solid; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <img class="logo" src="../../assets/timewizer-logo.svg" alt="">
+  <h1>Timewizer</h1>
+  <p>A short guide to making your school timetable.</p>
+  <p class="small">Timewizer works on your own computer and needs no internet. Each school is one file that you can save, copy and open again, like a document.</p>
+</div>
+
+<section class="first">
+  <div class="eyebrow">Getting started</div>
+  <h2>1. Install and open</h2>
+  <h3>Windows</h3>
+  <p>Double-click the <b>setup .exe</b> file and follow the steps. Then open <b>Timewizer</b> from the Start menu. If Windows shows <b>"Windows protected your PC"</b>, press <b>More info</b>, then <b>Run anyway</b> (the installer is not signed yet). School IT staff can use the <b>.msi</b> file instead. Double-clicking a saved school file (<kbd>.twz</kbd>) opens it in Timewizer.</p>
+  <h3>Ubuntu</h3>
+  <p>On Ubuntu, double-click the <b>.deb</b> file and press Install (or run <kbd>sudo apt install ./Timewizer_0.1.0_amd64.deb</kbd> in a terminal). Then open <b>Timewizer</b> from the applications menu.</p>
+  <p>You can also use the <b>AppImage</b> file instead: right-click it, choose Properties, allow it to run as a program, then double-click it. Nothing is installed.</p>
+  <h3>Start a school</h3>
+  <ol>
+    <li>Type the school's name and press <b>Create school</b>. Choose where to keep the school file.</li>
+    <li>Or press <b>Open file…</b> to continue with a school you saved before.</li>
+  </ol>
+  <p>The steps are in the list on the left, from top to bottom. Press <b>Save</b> (or <kbd>Ctrl</kbd>+<kbd>S</kbd>) often. <b>Save as…</b> makes a copy, which is a good way to keep a backup.</p>
+  <figure><img src="../screenshots/light/02-school.png" alt=""><figcaption>The School page. Add your school's own logo here; it is printed on timetables.</figcaption></figure>
+  <div class="tip"><b>Want to look around first?</b> The folder <i>samples</i> has a made-up school. Create a new school, open <b>Import data</b>, choose the five files in that folder and press Import.</div>
+</section>
+
+<section>
+  <div class="eyebrow">Setting up</div>
+  <h2>2. Days, shifts and bell times</h2>
+  <p><b>Working days</b>: switch on the days your school runs lessons (Saturday is optional).</p>
+  <p><b>Shifts &amp; bells</b>: a school can have a morning shift, an afternoon shift, or both. Each shift has its own periods. Bell times are set for each day, so Friday can finish early. Use <i>Quick fill</i> to make a day's periods in one go, then <i>Copy Mon times</i> to the other days.</p>
+  <figure><img src="../screenshots/light/04-shifts-and-bells.png" alt="" style="max-height: 100mm; object-fit: cover; object-position: top;"><figcaption>Break after period 3, switched on as "cannot be crossed" so double periods never run across it.</figcaption></figure>
+  <h3>Rules &amp; limits</h3>
+  <p>School-wide rules, kept every time a timetable is built:</p>
+  <ul>
+    <li><b>Teacher limits</b>: the most periods a teacher may teach per day and per week. A teacher can have their own numbers on the Teachers page.</li>
+    <li><b>Same subject on the same day</b>: normally 1, so a class never has two separate Maths sessions on one day.</li>
+    <li><b>What makes a timetable good</b>: sliders for free periods, spreading lessons across the week and so on. 0 means ignore, 10 means very important.</li>
+    <li><b>Bending rules</b>: if a full timetable is impossible, Timewizer can bend a few rules and tell you exactly which.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="eyebrow">Setting up</div>
+  <h2>3. Subjects, teachers, classes and rooms</h2>
+  <p>Add each of these under <b>Master data</b>. Pick one in the list, then fill in its details.</p>
+  <ul>
+    <li><b>Subjects</b>: a name, a short name and a colour. The colour is used on timetables.</li>
+    <li><b>Teachers</b>: the shift or shifts they work, their limits, and the times they cannot teach.</li>
+    <li><b>Classes</b>: each belongs to one shift. A class can be split into groups (for example Boys and Girls).</li>
+    <li><b>Rooms</b>: a name and a size; rooms can have times they are closed.</li>
+  </ul>
+  <h3>Times people cannot teach</h3>
+  <p>Click a box to cycle: <span class="dot" style="border-color:#DCD0BC"></span>available, <span class="dot" style="border-color:#E8A33D;background:#E8A33D"></span>avoid if possible, <span class="dot" style="border-color:#C0504D;background:#C0504D"></span>not available. Click a day's name to block the whole day. Striped boxes are periods that do not exist that day.</p>
+  <figure><img src="../screenshots/light/08-teachers-time-off.png" alt="" style="max-height: 100mm; object-fit: cover; object-position: top;"><figcaption>A teacher with Friday blocked and Monday period 1 marked "avoid if possible".</figcaption></figure>
+  <div class="tip"><b>Faster:</b> use <b>Import data</b> to bring in subjects, teachers, rooms, classes and lessons from Excel or CSV. The page has downloadable templates. Rows that already exist are skipped, so importing twice is safe, and any row that cannot be used is listed with the reason.</div>
+</section>
+
+<section>
+  <div class="eyebrow">Lessons</div>
+  <h2>4. Lessons</h2>
+  <p>A <b>lesson</b> says who teaches which subject to which class, how many sessions a week, and how long each is (single, double or triple period). The words used everywhere in Timewizer:</p>
+  <table>
+    <tr><th>Word</th><th>Meaning</th></tr>
+    <tr><td>Lesson</td><td>One row in the Lessons list, for example "English · 6A".</td></tr>
+    <tr><td>Lesson session</td><td>One occurrence of a lesson in the week. A double period is one session.</td></tr>
+    <tr><td>Period</td><td>One time slot. A double period is two periods.</td></tr>
+  </table>
+  <figure><img src="../screenshots/light/11-lessons-with-link.png" alt="" style="max-height: 92mm; object-fit: cover; object-position: top;"><figcaption>A lesson with its teacher, rooms and a "same time" link.</figcaption></figure>
+  <h3>Same time</h3>
+  <p>Some lessons must happen together, for example two halves of a class swapping ICT and Library, or electives across sections. In the lesson, use <b>Must happen at the same time as</b>. Session 1 of each linked lesson is placed together, with its own room.</p>
+  <h3>Copy lessons to other classes</h3>
+  <p>Press <b>Copy lessons to other classes…</b>, choose the class to copy from and the classes to copy to. A preview shows what will be added, and nothing changes until you press the button at the bottom. Then change the teachers if they differ.</p>
+  <p><b>Workload</b> shows each class and teacher: periods used compared with periods available.</p>
+</section>
+
+<section>
+  <div class="eyebrow">Building</div>
+  <h2>5. Check, then build</h2>
+  <h3>Check before building</h3>
+  <p>This finds lessons that can never fit, before anything is built: a teacher with too many periods, a lesson whose teacher and class are never free together, a room that is not big enough for the demand. Each problem has a plain explanation and <b>How to fix</b>.</p>
+  <figure><img src="../screenshots/light/15-check-problems.png" alt="" style="max-height: 60mm; object-fit: cover; object-position: top;"><figcaption>Here three teachers have more periods than the weekly limit that was set.</figcaption></figure>
+  <h3>Build timetable</h3>
+  <p>Press <b>Build timetable</b>. A bar shows progress and you can press <b>Stop</b>. First all lesson sessions are placed, then the timetable is improved using the wishes from Rules &amp; limits. The result shows how many sessions were placed, and how much better the timetable became.</p>
+  <figure><img src="../screenshots/light/16-build-done.png" alt="" style="max-height: 80mm; object-fit: cover; object-position: top;"><figcaption>All lesson sessions placed, with the quality report.</figcaption></figure>
+  <p>If some sessions cannot be placed, each one is listed with the reason and a suggestion. If you switched on <b>bending a few rules</b>, the page lists every rule that was bent.</p>
+</section>
+
+<section>
+  <div class="eyebrow">Using the timetable</div>
+  <h2>6. Looking at and changing the timetable</h2>
+  <p>Open <b>Timetable</b>. Choose <b>Class</b>, <b>Teacher</b>, <b>Room</b> or <b>Master</b> (all classes together; use the zoom to make it bigger).</p>
+  <figure><img src="../screenshots/light/18-timetable-dragging.png" alt="" style="max-height: 100mm; object-fit: cover; object-position: top;"><figcaption>Dragging a lesson. Green boxes are free, yellow is possible but not ideal, red is blocked.</figcaption></figure>
+  <ul>
+    <li><b>Move</b>: drag a lesson to a green or yellow box. Hover a red box to read why it is blocked.</li>
+    <li><b>Swap</b>: drop a lesson on another one. If the swap works, that lesson lights up green.</li>
+    <li><b>Lock</b>: hover a lesson and press the padlock. Locked lessons stay where they are, even when you build again.</li>
+    <li><b>Room</b>: hover a lesson and press the door to choose its room.</li>
+    <li><b>Take off</b>: drag a lesson to the box at the bottom; drag it back to place it again.</li>
+    <li><b>Undo / Redo</b>: the buttons at the top, or <kbd>Ctrl</kbd>+<kbd>Z</kbd> and <kbd>Ctrl</kbd>+<kbd>Y</kbd>.</li>
+    <li><b>Improve quality</b>: tidies the timetable after your changes. Locked lessons never move.</li>
+  </ul>
+  <div class="tip"><b>If you change lessons or time off</b> after building, the page warns that the timetable may be out of date. Build again; your locked lessons stay put.</div>
+</section>
+
+<section>
+  <div class="eyebrow">Sharing</div>
+  <h2>7. Print and export</h2>
+  <p>Open <b>Print &amp; export</b>. Choose what to print (classes, teachers, rooms, the master timetable, or just some names), the paper (A4, A3 or Letter, wide or tall), colour or black and white, and whether to show the school logo. A preview shows the page.</p>
+  <figure><img src="../screenshots/light/25-print-and-export.png" alt="" style="max-height: 105mm; object-fit: cover; object-position: top;"><figcaption>The Print &amp; export page.</figcaption></figure>
+  <table>
+    <tr><th>Button</th><th>What you get</th></tr>
+    <tr><td>Save PDF</td><td>One file, one page for each timetable, with your school's name and logo. Best for printing.</td></tr>
+    <tr><td>Save pictures (PNG)</td><td>One picture for each timetable, in a folder you choose. Good for WhatsApp or e-mail.</td></tr>
+    <tr><td>Save Excel</td><td>A workbook with the master timetable, and sheets for classes, teachers and rooms, plus a list of every lesson session.</td></tr>
+    <tr><td>Save CSV</td><td>A plain list with one line for each lesson session, for other programs.</td></tr>
+  </table>
+  <div class="tip"><b>Tip:</b> the master timetable has many small boxes. It is easiest to read on A3.</div>
+</section>
+
+<section>
+  <div class="eyebrow">Help</div>
+  <h2>8. If something goes wrong</h2>
+  <table>
+    <tr><th>What you see</th><th>What to do</th></tr>
+    <tr><td>"Please fix the problems on the Check page first"</td><td>Open <b>Check before building</b>. Each problem says how to fix it.</td></tr>
+    <tr><td>Some lesson sessions "could not be fitted in"</td><td>Read the reason under each one. Usually a teacher or class has too little free time. Free up time, or switch on <i>bending a few rules</i> in Rules &amp; limits.</td></tr>
+    <tr><td>A red box when you drag</td><td>Hover it. It names the teacher, class or room that is in the way.</td></tr>
+    <tr><td>Import says a row could not be imported</td><td>The message gives the file, the row and the reason. Fix that row and import again.</td></tr>
+    <tr><td>Names print as "?" in the PDF</td><td>The PDF supports Western letters only. Pictures (PNG) and Excel work with any letters.</td></tr>
+  </table>
+  <h3>Good habits</h3>
+  <ul>
+    <li>Save often, and use <b>Save as…</b> to keep a copy before big changes.</li>
+    <li>Lock the lessons you are happy with before building again.</li>
+    <li>Build with a longer "time spent improving" (Rules &amp; limits) for the final timetable.</li>
+  </ul>
+  <p style="margin-top:6mm;color:var(--muted);font-size:9pt">Timewizer is open source (Apache-2.0).</p>
+</section>
+
+</body>
+</html>

@@ -1,0 +1,45 @@
+@import "@fontsource-variable/domine";
+@import "@fontsource-variable/nunito-sans";
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Nunito Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Domine Variable", Georgia, serif;
+  --color-accent: var(--accent);
+  --color-highlight: #E8A33D;
+}
+
+:root {
+  --bg: #EFE6D8; --surface: #F7F1E7; --ink: #18343F; --accent: #1F6F6B;
+  --highlight: #E8A33D; --muted: #5A6468; --line: #DCD0BC; --on-ink: #EFE6D8;
+  --success: #2E8B57; --warning: #E8A33D; --danger: #C0504D;
+  color-scheme: light;
+}
+.dark {
+  --bg: #0F2229; --surface: #18343F; --ink: #EFE6D8; --accent: #3FA39A;
+  --highlight: #E8A33D; --muted: #A9B4B6; --line: #2A4854; --on-ink: #0F2229;
+  --success: #3AA468; --warning: #EDB055; --danger: #D26763;
+  color-scheme: dark;
+}
+
+body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); }
+h1, h2, h3 { font-family: var(--font-serif); }
+:focus-visible { outline: 2px solid var(--highlight); outline-offset: 2px; }
+.eyebrow { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+
+/* Form controls follow the theme (native pickers, option lists, checkboxes). */
+input, select, textarea { color: var(--ink); background-color: var(--bg); }
+input::placeholder { color: var(--muted); opacity: 0.8; }
+input[type="checkbox"] { accent-color: var(--accent); width: 1rem; height: 1rem; }
+select {
+  appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 2.25rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%235A6468' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 0.85rem center;
+}
+.dark select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23A9B4B6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+select option, select optgroup { background-color: var(--surface); color: var(--ink); }
+select option:checked { background-color: var(--accent); color: #fff; }
+select:disabled, input:disabled { opacity: 0.6; }

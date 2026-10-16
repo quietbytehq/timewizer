@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Timewizer app icon: a timetable grid with one "magic" placed card and a spark -->
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="#18343F"/>
+  <!-- grid cards: 3 columns x 3 rows -->
+  <g fill="#EFE6D8" opacity="0.18">
+    <rect x="104" y="128" width="88" height="72" rx="16"/>
+    <rect x="212" y="128" width="88" height="72" rx="16"/>
+    <rect x="104" y="220" width="88" height="72" rx="16"/>
+    <rect x="320" y="220" width="88" height="72" rx="16"/>
+    <rect x="212" y="312" width="88" height="72" rx="16"/>
+    <rect x="320" y="312" width="88" height="72" rx="16"/>
+  </g>
+  <!-- placed cards -->
+  <rect x="320" y="128" width="88" height="72" rx="16" fill="#2A8C84"/>
+  <rect x="104" y="312" width="88" height="72" rx="16" fill="#2A8C84"/>
+  <!-- the magic card (centre) -->
+  <rect x="212" y="220" width="88" height="72" rx="16" fill="#E8A33D"/>
+  <!-- spark -->
+  <path d="M410 52 C413 76 420 83 444 86 C420 89 413 96 410 120 C407 96 400 89 376 86 C400 83 407 76 410 52 Z" fill="#E8A33D"/>
+  <circle cx="452" cy="134" r="8" fill="#E8A33D" opacity="0.8"/>
+</svg>

@@ -1,0 +1,35 @@
+[package]
+name = "timewizer"
+version = "0.1.0"
+description = "Timewizer"
+edition = "2021"
+# `tauri dev` / `cargo run` must start the app even though a second binary (uibridge, for UI tests) exists.
+default-run = "timewizer"
+
+[lib]
+name = "timewizer_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri-plugin-dialog = "2.8.3"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+thiserror = "2.0.21"
+calamine = "0.36.1"
+rust_xlsxwriter = "0.99.1"
+csv = "1.4.0"
+base64 = "0.22"
+
+[features]
+# A small local web server that exposes the app's commands to a browser, for automated UI tests.
+uitest = []
+
+[[bin]]
+name = "uibridge"
+path = "src/bin/uibridge.rs"
+required-features = ["uitest"]
