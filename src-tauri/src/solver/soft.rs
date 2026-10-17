@@ -242,6 +242,24 @@ pub struct ImproveResult {
     pub accepted: u64,
     /// Energy of the state the search ended in, tracked move by move.
     pub final_energy: f64,
+    /// Energy of `best`: the lowest the search ever reached.
+    pub best_energy: f64,
+}
+
+/// The best state seen so far. Every improvement is copied at once, so the search can stop at
+/// any moment (time up, cancelled) and still hand back the best timetable it ever visited.
+struct Best {
+    place: Vec<Option<Pl>>,
+    energy: f64,
+}
+
+impl Best {
+    fn offer(&mut self, energy: f64, place: &[Option<Pl>]) {
+        if energy < self.energy - 1e-9 {
+            self.energy = energy;
+            self.place = place.to_vec();
+        }
+    }
 }
 
 /// Simulated annealing over relocations and swaps. The caller's state is left in some visited
@@ -260,14 +278,12 @@ pub fn improve(
     let mut rng = Rng::new(seed ^ 0xABCDEF);
     let movable: Vec<usize> = (0..m.cards.len()).filter(|&v| st.place[v].is_some() && !st.locked[v] && m.cards[v].broken.is_none()).collect();
     let mut cur = measure(st).weighted(w);
-    let mut best_e = cur;
-    let mut best = st.place.clone();
-    let (mut moves, mut accepted, mut since_snap) = (0u64, 0u64, 0u64);
-    let (mut dirty, mut snap_e) = (false, cur);
+    let mut best = Best { place: st.place.clone(), energy: cur };
+    let (mut moves, mut accepted) = (0u64, 0u64);
     let (t_hot, t_cold) = (4.0f64, 0.05f64);
     let mut temp = t_hot;
     if movable.len() < 1 || cur <= 0.0 {
-        return ImproveResult { best, moves, accepted, final_energy: cur };
+        return ImproveResult { best: best.place, moves, accepted, final_energy: cur, best_energy: best.energy };
     }
     loop {
         if moves % 256 == 0 {
@@ -281,7 +297,6 @@ pub fn improve(
             }
         }
         moves += 1;
-        since_snap += 1;
         let v = movable[(rng.next() % movable.len() as u64) as usize];
         let cv = &m.cards[v];
         let old = st.place[v].unwrap();
@@ -354,22 +369,10 @@ pub fn improve(
                 st.undo(cp);
             }
         }
-        if cur < best_e - 1e-9 {
-            best_e = cur;
-            dirty = true;
-        }
-        if dirty && since_snap >= 100 {
-            best = st.place.clone();
-            snap_e = best_e;
-            dirty = false;
-            since_snap = 0;
-        }
-    }
-    if cur <= snap_e + 1e-9 || dirty && cur <= best_e + 1e-9 {
-        best = st.place.clone();
+        best.offer(cur, &st.place);
     }
     progress(1.0);
-    ImproveResult { best, moves, accepted, final_energy: cur }
+    ImproveResult { best: best.place, moves, accepted, final_energy: cur, best_energy: best.energy }
 }
 
 /// A card that keeps using its old rooms when they are free in the new slot.
@@ -385,4 +388,20 @@ fn keep_rooms(st: &State, v: usize, to: Start, old: &Pl, rooms: &mut [i16; super
 
 fn accept(delta: f64, temp: f64, rng: &mut Rng) -> bool {
     delta <= 0.0 || rng.unit() < (-delta / temp).exp()
+}
+
+#[cfg(test)]
+mod best_tests {
+    use super::*;
+
+    #[test]
+    fn best_keeps_the_lowest_state_even_if_the_search_then_wanders_off() {
+        let at = |period: u8| vec![Some(Pl::new(0, period))];
+        let mut b = Best { place: at(1), energy: 10.0 };
+        b.offer(5.0, &at(2)); // found just before the time ran out ...
+        b.offer(8.0, &at(3)); // ... and the search then moved to something worse
+        b.offer(5.0, &at(4)); // an equal state is not a new best
+        assert_eq!(b.energy, 5.0);
+        assert_eq!(b.place[0].unwrap().period, 2);
+    }
 }

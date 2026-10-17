@@ -76,6 +76,33 @@ fn split_list(s: &str) -> Vec<String> {
     s.split([',', ';']).map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect()
 }
 
+/// Splits a cell that lists names ("Ms Ana, BOB"). A name may itself contain a comma
+/// ("Khan, Ayesha"), so at each point the longest run of pieces that is a known name wins;
+/// anything unknown falls back to a single piece (and is reported as not found later).
+/// A semicolon always separates names.
+fn split_names(s: &str, known: impl Fn(&str) -> bool) -> Vec<String> {
+    let mut out = Vec::new();
+    for segment in s.split(';') {
+        let pieces: Vec<&str> = segment.split(',').map(str::trim).collect();
+        let mut i = 0;
+        while i < pieces.len() {
+            let mut take = 1;
+            for j in (i + 2..=pieces.len()).rev() {
+                if known(&pieces[i..j].join(", ")) {
+                    take = j - i;
+                    break;
+                }
+            }
+            let name = pieces[i..i + take].join(", ");
+            if !name.is_empty() {
+                out.push(name);
+            }
+            i += take;
+        }
+    }
+    out
+}
+
 fn valid_colour(c: &str) -> bool {
     let c = c.trim();
     c.len() == 7 && c.starts_with('#') && c[1..].chars().all(|x| x.is_ascii_hexdigit())
@@ -304,7 +331,8 @@ pub fn apply(mut setup: SchoolSetup, tables: Vec<(String, Table)>) -> ImportRepo
                         }
                     };
                     let mut teachers = Vec::new();
-                    for t in split_list(&rows.get(row, "Teachers")) {
+                    let known_teacher = |n: &str| find(&m.teachers, n, |x| (&x.name, &x.short_name)).is_some();
+                    for t in split_names(&rows.get(row, "Teachers"), known_teacher) {
                         match find(&m.teachers, &t, |x| (&x.name, &x.short_name)) {
                             Some(x) => teachers.push(x.id.clone()),
                             None => {
@@ -314,7 +342,8 @@ pub fn apply(mut setup: SchoolSetup, tables: Vec<(String, Table)>) -> ImportRepo
                         }
                     }
                     let mut rooms = Vec::new();
-                    for r in split_list(&rows.get(row, "Rooms")) {
+                    let known_room = |n: &str| find(&m.rooms, n, |x| (&x.name, &x.short_name)).is_some();
+                    for r in split_names(&rows.get(row, "Rooms"), known_room) {
                         match find(&m.rooms, &r, |x| (&x.name, &x.short_name)) {
                             Some(x) => rooms.push(x.id.clone()),
                             None => {
@@ -324,7 +353,8 @@ pub fn apply(mut setup: SchoolSetup, tables: Vec<(String, Table)>) -> ImportRepo
                         }
                     }
                     let mut parts = Vec::new();
-                    for item in split_list(&rows.get(row, "Classes")) {
+                    let known_class = |n: &str| find(&m.classes, n.split(':').next().unwrap_or(n), |x| (&x.name, &x.short_name)).is_some();
+                    for item in split_names(&rows.get(row, "Classes"), known_class) {
                         let (cn, gn) = match item.split_once(':') {
                             Some((c, g)) => (c.trim(), Some(g.trim())),
                             None => (item.as_str(), None),
@@ -509,6 +539,32 @@ mod tests {
         assert_eq!(decode_csv_bytes(b"Caf\xe9"), "Café");
         assert_eq!(decode_csv_bytes(b"Zo\xeb \x96 Ali"), "Zoë – Ali");
         assert_eq!(decode_csv_bytes("Café".as_bytes()), "Café");
+    }
+
+    #[test]
+    fn names_with_commas_survive_import() {
+        // "Khan, Ayesha" is how the Excel export writes a teacher; the lessons list must find her again.
+        let r = apply(base(), vec![
+            csv("lessons", "Subject,Teachers,Classes,Periods per session,Sessions per week,Rooms\nMaths,\"Khan, Ayesha\",\"Grade 6, A\",1,5,\"Lab, North\"\nMaths,\"Khan, Ayesha; BOB\",\"Grade 6, A\",1,2,\n"),
+            csv("classes", "Name,Short name,Shift,Class teacher,Home classroom\n\"Grade 6, A\",6A,Morning,,\n"),
+            csv("rooms", "Name,Short name,Building,Capacity\n\"Lab, North\",LN,Main,30\n"),
+            csv("teachers", "Name,Short name,Email,Shifts,Most lessons per day\n\"Khan, Ayesha\",AKH,,Morning,6\nBob,BOB,,,\n"),
+            csv("subjects", "Name,Short name,Colour\nMaths,MA,#123456\n"),
+        ]);
+        assert!(r.problems.is_empty(), "{:?}", r.problems);
+        assert_eq!(r.added.lessons, 2);
+        assert_eq!(r.setup.lessons[0].teachers.len(), 1);
+        assert_eq!(r.setup.lessons[0].rooms.len(), 1);
+        assert_eq!(r.setup.lessons[1].teachers.len(), 2);
+    }
+
+    #[test]
+    fn split_names_still_splits_plain_lists() {
+        let known = |n: &str| n == "Khan, Ayesha";
+        assert_eq!(split_names("Ms Ana, BOB; Cy", known), vec!["Ms Ana", "BOB", "Cy"]);
+        assert_eq!(split_names("Khan, Ayesha, BOB", known), vec!["Khan, Ayesha", "BOB"]);
+        assert_eq!(split_names("Khan, Zed", known), vec!["Khan", "Zed"]);
+        assert!(split_names(" , ", known).is_empty());
     }
 
     #[test]

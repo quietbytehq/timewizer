@@ -1,6 +1,6 @@
 [package]
 name = "timewizer"
-version = "0.1.0"
+version = "0.1.1"
 description = "Timewizer"
 edition = "2021"
 # `tauri dev` / `cargo run` must start the app even though a second binary (uibridge, for UI tests) exists.

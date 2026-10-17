@@ -1,3 +1,4 @@
+mod access;
 mod check;
 mod copy;
 mod db;
@@ -15,7 +16,9 @@ use model::{Issue, SchoolSetup};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::Arc;
+use access::Approved;
 use tauri::{AppHandle, Emitter, State};
+use tauri_plugin_dialog::DialogExt;
 
 #[cfg(feature = "uitest")]
 pub mod bridge;
@@ -39,8 +42,8 @@ fn with_ext(path: String) -> PathBuf {
 }
 
 #[tauri::command]
-fn create_school(path: String, name: String, cur: State<Current>) -> Result<Opened, String> {
-    let p = with_ext(path);
+fn create_school(path: String, name: String, cur: State<Current>, ok: State<Approved>) -> Result<Opened, String> {
+    let p = with_ext(ok.check(&path)?.to_string_lossy().into());
     if p.exists() {
         std::fs::remove_file(&p).map_err(|e| format!("Could not replace the existing file: {e}"))?;
     }
@@ -51,8 +54,8 @@ fn create_school(path: String, name: String, cur: State<Current>) -> Result<Open
 }
 
 #[tauri::command]
-fn open_school(path: String, cur: State<Current>) -> Result<Opened, String> {
-    let p = PathBuf::from(path);
+fn open_school(path: String, cur: State<Current>, ok: State<Approved>) -> Result<Opened, String> {
+    let p = ok.check(&path)?;
     let setup = db::load(&p)?;
     *cur.0.lock().unwrap() = Some(p.clone());
     Ok(Opened { path: p.to_string_lossy().into(), setup })
@@ -66,8 +69,8 @@ fn save_school(setup: SchoolSetup, cur: State<Current>) -> Result<(), String> {
 
 /// Writes a copy to a new file and makes that file the current one.
 #[tauri::command]
-fn save_school_as(path: String, setup: SchoolSetup, cur: State<Current>) -> Result<String, String> {
-    let p = with_ext(path);
+fn save_school_as(path: String, setup: SchoolSetup, cur: State<Current>, ok: State<Approved>) -> Result<String, String> {
+    let p = with_ext(ok.check(&path)?.to_string_lossy().into());
     if p.exists() {
         std::fs::remove_file(&p).map_err(|e| format!("Could not replace the existing file: {e}"))?;
     }
@@ -147,7 +150,8 @@ fn plan_copy_lessons(setup: SchoolSetup, source: String, targets: Vec<String>, c
 }
 
 #[tauri::command]
-fn export_csv(setup: SchoolSetup, path: String) -> Result<(), String> {
+fn export_csv(setup: SchoolSetup, path: String, ok: State<Approved>) -> Result<(), String> {
+    let path = ok.check(&path)?;
     if setup.timetable.as_ref().map_or(true, |t| t.cards.is_empty()) {
         return Err("There is no timetable to export yet. Build one first.".into());
     }
@@ -155,22 +159,24 @@ fn export_csv(setup: SchoolSetup, path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn export_excel(setup: SchoolSetup, path: String) -> Result<(), String> {
-    export::write_excel(&setup, std::path::Path::new(&path))
+fn export_excel(setup: SchoolSetup, path: String, ok: State<Approved>) -> Result<(), String> {
+    export::write_excel(&setup, &ok.check(&path)?)
 }
 
 /// Saves a file the front end made (PDF, PNG). The bytes arrive as base64 text.
 #[tauri::command]
-fn write_file(path: String, data_base64: String) -> Result<(), String> {
+fn write_file(path: String, data_base64: String, ok: State<Approved>) -> Result<(), String> {
     use base64::Engine;
+    let path = ok.check(&path)?;
     let bytes = base64::engine::general_purpose::STANDARD.decode(data_base64).map_err(|e| format!("Could not read the file data: {e}"))?;
     std::fs::write(&path, bytes).map_err(|e| format!("Could not save the file: {e}"))
 }
 
 /// Reads a file (a logo picture) and returns it as base64 text.
 #[tauri::command]
-fn read_file_base64(path: String) -> Result<String, String> {
+fn read_file_base64(path: String, ok: State<Approved>) -> Result<String, String> {
     use base64::Engine;
+    let path = ok.check(&path)?;
     let bytes = std::fs::read(&path).map_err(|e| format!("Could not open the file: {e}"))?;
     if bytes.len() > 8 * 1024 * 1024 {
         return Err("That picture is too large (more than 8 MB).".into());
@@ -185,18 +191,19 @@ fn cancel_generate(jobs: State<jobs::Jobs>) {
 
 /// Reads an Excel/CSV file and adds its rows to the setup (nothing is saved yet).
 #[tauri::command]
-fn import_file(path: String, kind: Option<String>, setup: SchoolSetup) -> Result<importer::ImportReport, String> {
-    let tables = importer::read_file(std::path::Path::new(&path), kind.as_deref())?;
+fn import_file(path: String, kind: Option<String>, setup: SchoolSetup, ok: State<Approved>) -> Result<importer::ImportReport, String> {
+    let tables = importer::read_file(&ok.check(&path)?, kind.as_deref())?;
     Ok(importer::apply(setup, tables))
 }
 
 #[tauri::command]
-fn write_template(path: String, kind: Option<String>) -> Result<(), String> {
+fn write_template(path: String, kind: Option<String>, ok: State<Approved>) -> Result<(), String> {
+    let path = ok.check(&path)?;
     match kind {
         Some(k) if importer::KINDS.contains(&k.as_str()) => {
             std::fs::write(&path, importer::csv_template(&k)).map_err(|e| format!("Could not save the template: {e}"))
         }
-        _ => importer::write_xlsx_template(std::path::Path::new(&path)),
+        _ => importer::write_xlsx_template(&path),
     }
 }
 
@@ -209,8 +216,44 @@ pub fn startup_file_from(args: impl IntoIterator<Item = String>) -> Option<Strin
 }
 
 #[tauri::command]
-fn startup_file() -> Option<String> {
-    startup_file_from(std::env::args())
+fn startup_file(ok: State<Approved>) -> Option<String> {
+    let f = startup_file_from(std::env::args())?;
+    ok.allow_file(&f); // the person opened it from the file manager
+    Some(f)
+}
+
+/// Shows the system "open" dialog. Only paths chosen here can be used later (see `access`).
+/// `what`: "school", "import", "picture" or "folder". An empty list means cancelled.
+#[tauri::command]
+async fn pick_open(what: String, app: AppHandle, ok: State<'_, Approved>) -> Result<Vec<String>, String> {
+    let d = app.dialog().file();
+    let d = match what.as_str() {
+        "school" => d.set_title("Open a school").add_filter("Timewizer school", &["twz"]),
+        "import" => d.set_title("Choose files to import").add_filter("Excel or CSV", &["xlsx", "xlsm", "xls", "csv"]),
+        "picture" => d.set_title("Choose your school logo").add_filter("Pictures", &["png", "jpg", "jpeg", "gif", "webp", "svg"]),
+        "folder" => d.set_title("Choose a folder for the pictures"),
+        _ => return Err("Unknown kind of file.".into()),
+    };
+    let picked: Vec<PathBuf> = if what == "folder" {
+        d.blocking_pick_folder().into_iter().filter_map(|p| p.into_path().ok()).collect()
+    } else if what == "import" {
+        d.blocking_pick_files().unwrap_or_default().into_iter().filter_map(|p| p.into_path().ok()).collect()
+    } else {
+        d.blocking_pick_file().into_iter().filter_map(|p| p.into_path().ok()).collect()
+    };
+    for p in &picked {
+        if what == "folder" { ok.allow_folder(p) } else { ok.allow_file(p) }
+    }
+    Ok(picked.iter().map(|p| p.to_string_lossy().into_owned()).collect())
+}
+
+/// Shows the system "save" dialog and remembers the chosen path. `None` means cancelled.
+#[tauri::command]
+async fn pick_save(title: String, default_name: String, label: String, ext: String, app: AppHandle, ok: State<'_, Approved>) -> Result<Option<String>, String> {
+    let picked = app.dialog().file().set_title(title).set_file_name(default_name).add_filter(label, &[ext.as_str()]).blocking_save_file();
+    let Some(p) = picked.and_then(|p| p.into_path().ok()) else { return Ok(None) };
+    ok.allow_file(&p);
+    Ok(Some(p.to_string_lossy().into_owned()))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -218,6 +261,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(Current::default())
+        .manage(Approved::default())
         .manage(jobs::Jobs::default())
         .invoke_handler(tauri::generate_handler![
             create_school,
@@ -243,7 +287,9 @@ pub fn run() {
             timetable_consistent,
             import_file,
             write_template,
-            startup_file
+            startup_file,
+            pick_open,
+            pick_save
         ])
         .run(tauri::generate_context!())
         .expect("error while running Timewizer");

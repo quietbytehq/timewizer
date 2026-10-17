@@ -1,17 +1,20 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { open, save } from '@tauri-apps/plugin-dialog'
 import type { GenProgress, ImproveReport, CopyPlan, SwapInfo, SlotInfo, Timetable, SolveReport, CheckReport, ImportReport, Issue, LoadSummary, Opened, SchoolSetup } from './types'
 
-const filters = [{ name: 'Timewizer school', extensions: ['twz'] }]
+// The file dialogs are opened by the program itself, which remembers what was chosen: the
+// other commands only accept files that were picked here (see src-tauri/src/access.rs).
+const pickOpen = (what: 'school' | 'import' | 'picture' | 'folder') => invoke<string[] | string | null>('pick_open', { what })
+const toList = (r: string[] | string | null): string[] => (Array.isArray(r) ? r : typeof r === 'string' ? [r] : [])
+const pickSave = (title: string, defaultName: string, label: string, ext: string) =>
+  invoke<string | null>('pick_save', { title, defaultName, label, ext })
 
 export const api = {
   async pickNewPath(defaultName: string): Promise<string | null> {
-    return save({ title: 'Where should the school file be saved?', defaultPath: `${defaultName}.twz`, filters })
+    return pickSave('Where should the school file be saved?', `${defaultName}.twz`, 'Timewizer school', 'twz')
   },
   async pickOpenPath(): Promise<string | null> {
-    const r = await open({ title: 'Open a school', multiple: false, filters })
-    return typeof r === 'string' ? r : null
+    return toList(await pickOpen('school'))[0] ?? null
   },
   create: (path: string, name: string) => invoke<Opened>('create_school', { path, name }),
   startupFile: () => invoke<string | null>('startup_file'),
@@ -21,12 +24,10 @@ export const api = {
   close: () => invoke<void>('close_school'),
   lessonLoads: (setup: SchoolSetup) => invoke<LoadSummary>('lesson_loads', { setup }),
   async pickImportFiles(): Promise<string[]> {
-    const r = await open({ title: 'Choose files to import', multiple: true,
-      filters: [{ name: 'Excel or CSV', extensions: ['xlsx', 'xlsm', 'xls', 'csv'] }] })
-    return Array.isArray(r) ? r : typeof r === 'string' ? [r] : []
+    return toList(await pickOpen('import'))
   },
   async pickTemplatePath(name: string, ext: string): Promise<string | null> {
-    return save({ title: 'Save the template', defaultPath: name, filters: [{ name: ext.toUpperCase(), extensions: [ext] }] })
+    return pickSave('Save the template', name, ext.toUpperCase(), ext)
   },
   importFile: (path: string, kind: string | null, setup: SchoolSetup) =>
     invoke<ImportReport>('import_file', { path, kind, setup }),
@@ -52,16 +53,13 @@ export const api = {
     invoke<CopyPlan>('plan_copy_lessons', { setup, source, targets, copyTeachers }),
   timetableConsistent: (setup: SchoolSetup) => invoke<boolean>('timetable_consistent', { setup }),
   async pickSaveFile(defaultName: string, ext: string, label: string): Promise<string | null> {
-    return save({ title: 'Save as', defaultPath: defaultName, filters: [{ name: label, extensions: [ext] }] })
+    return pickSave('Save as', defaultName, label, ext)
   },
   async pickFolder(): Promise<string | null> {
-    const r = await open({ title: 'Choose a folder for the pictures', directory: true, multiple: false })
-    return typeof r === 'string' ? r : null
+    return toList(await pickOpen('folder'))[0] ?? null
   },
   async pickPicture(): Promise<string | null> {
-    const r = await open({ title: 'Choose your school logo', multiple: false,
-      filters: [{ name: 'Pictures', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] }] })
-    return typeof r === 'string' ? r : null
+    return toList(await pickOpen('picture'))[0] ?? null
   },
   exportCsv: (setup: SchoolSetup, path: string) => invoke<void>('export_csv', { setup, path }),
   exportExcel: (setup: SchoolSetup, path: string) => invoke<void>('export_excel', { setup, path }),

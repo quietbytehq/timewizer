@@ -1,5 +1,5 @@
 //! Independent checker for the hard rules of blueprint section 5.1 and the school's own
-//! limits. It does not share any code with the solver, so tests can trust it.
+//! limits. It shares no placement code with the solver, so tests can trust it; only the count of usable days per lesson comes from the solver's model, so both always agree on it.
 use super::Timetable;
 use crate::master::TimeOffCell;
 use crate::model::SchoolSetup;
@@ -30,6 +30,8 @@ pub fn check(s: &SchoolSetup, t: &Timetable) -> Vec<String> {
 pub fn check_with(s: &SchoolSetup, t: &Timetable, enforce: Enforce) -> Vec<String> {
     let mut bad = Vec::new();
     let m = &s.master;
+    // On how many days each lesson can really happen: taken from the solver's model so the two never disagree.
+    let usable_days = super::model::usable_days_by_lesson(s);
     let mut teacher_at: HashMap<(String, String, usize, usize), String> = HashMap::new();
     let mut room_at: HashMap<(String, String, usize, usize), String> = HashMap::new();
     let mut class_at: HashMap<(String, String, usize, usize), Vec<(u64, String)>> = HashMap::new();
@@ -138,8 +140,7 @@ pub fn check_with(s: &SchoolSetup, t: &Timetable, enforce: Enforce) -> Vec<Strin
         if !enforce.same_day {
             continue;
         }
-        let usable = usable_days(s, l);
-        if l.cards_per_week <= usable {
+        if l.cards_per_week <= usable_days.get(&l.id).copied().unwrap_or(0) {
             for d in 0..s.days.len() {
                 if lesson_days.get(&(l.id.clone(), d)).copied().unwrap_or(0) > 1 {
                     bad.push(format!("{}: two sessions on day {d}", l.id));
@@ -169,7 +170,7 @@ pub fn check_with(s: &SchoolSetup, t: &Timetable, enforce: Enforce) -> Vec<Strin
         if l.subject.is_empty() {
             continue;
         }
-        let u = usable_days(s, l);
+        let u = usable_days.get(&l.id).copied().unwrap_or(0);
         for part in &l.parts {
             let Some(c) = m.classes.iter().find(|x| x.id == part.class_id) else { continue };
             let e = usable_min.entry((c.id.clone(), l.subject.clone())).or_insert(u);
@@ -240,39 +241,6 @@ pub fn check_with(s: &SchoolSetup, t: &Timetable, enforce: Enforce) -> Vec<Strin
     bad
 }
 
-/// Days on which this lesson (and anything linked to it) could happen at all: some period
-/// free for everyone, and no more days than a part-time teacher works.
-fn usable_days(s: &SchoolSetup, l: &crate::lessons::Lesson) -> u32 {
-    let m = &s.master;
-    let linked: Vec<&crate::lessons::Lesson> = match s.links.iter().find(|k| k.lessons.contains(&l.id)) {
-        Some(k) => k.lessons.iter().filter_map(|id| s.lessons.iter().find(|x| &x.id == id)).collect(),
-        None => vec![l],
-    };
-    let mut usable = 0u32;
-    if let Some(sh) = l.parts.first().and_then(|p| m.classes.iter().find(|c| c.id == p.class_id)).and_then(|c| s.shifts.iter().find(|x| x.id == c.shift)) {
-        for d in 0..s.days.len().min(7) {
-            if !s.days[d].working {
-                continue;
-            }
-            let n = sh.days.get(d).map_or(0, |x| x.len());
-            let free = (1..=n).any(|p| {
-                linked.iter().all(|x| {
-                    x.teachers.iter().all(|t| m.teachers.iter().find(|y| &y.id == t).map_or(true, |y| state(&y.time_off, &sh.id, d, p) != 2))
-                        && x.parts.iter().all(|pt| m.classes.iter().find(|y| y.id == pt.class_id).map_or(true, |y| state(&y.time_off, &sh.id, d, p) != 2))
-                })
-            });
-            usable += free as u32;
-        }
-    }
-    for x in &linked {
-        for t in x.teachers.iter().filter_map(|t| m.teachers.iter().find(|y| &y.id == t)) {
-            if let Some(max) = t.max_days_per_week {
-                usable = usable.min(max);
-            }
-        }
-    }
-    usable
-}
 
 fn part_mask(c: &crate::master::Class, group: Option<&str>) -> u64 {
     match super::class_masks(c) {

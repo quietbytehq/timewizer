@@ -166,8 +166,15 @@ fn content_type(path: &Path) -> &'static str {
     }
 }
 
+/// The real app's content security policy (from tauri.conf.json), so the UI tests run under
+/// exactly the same restrictions as the installed program.
+fn csp() -> String {
+    let conf: Value = serde_json::from_str(include_str!("../tauri.conf.json")).expect("tauri.conf.json");
+    conf["app"]["security"]["csp"].as_str().expect("a CSP is set in tauri.conf.json").to_string()
+}
+
 fn respond(s: &mut TcpStream, code: &str, ctype: &str, body: &[u8]) {
-    let head = format!("HTTP/1.1 {code}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n", body.len());
+    let head = format!("HTTP/1.1 {code}\r\nContent-Type: {ctype}\r\nContent-Security-Policy: {}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n", csp(), body.len());
     let _ = s.write_all(head.as_bytes());
     let _ = s.write_all(body);
 }

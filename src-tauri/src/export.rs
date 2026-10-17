@@ -32,6 +32,10 @@ pub fn session_rows(s: &SchoolSetup) -> Vec<SessionRow> {
     for pc in &tt.cards {
         let Some(l) = s.lessons.iter().find(|l| l.id == pc.lesson_id) else { continue };
         let Some(sh) = s.shifts.iter().find(|x| x.id == pc.shift) else { continue };
+        // Periods count from 1 and a session lasts at least one period; a damaged file may say otherwise.
+        if pc.period == 0 || pc.length == 0 {
+            continue;
+        }
         let subject = m.subjects.iter().find(|x| x.id == l.subject);
         let times = sh.days.get(pc.day as usize);
         let at = |p: u32| times.and_then(|t| t.get(p as usize));
@@ -111,8 +115,11 @@ fn ink_on(hex: &str) -> Color {
 }
 
 /// A class name as written on a session ("Grade 6 A" or "Grade 6 A Boys") belongs to this class.
-fn class_matches(written: &str, class: &str) -> bool {
-    written == class || written.strip_prefix(class).map_or(false, |rest| rest.starts_with(' '))
+/// `all` is every class name: "Grade 6 A" must not count as part of a class called "Grade 6",
+/// so the longest class name that fits the written text wins.
+fn class_matches(written: &str, class: &str, all: &[String]) -> bool {
+    let fits = |c: &str| written == c || written.strip_prefix(c).map_or(false, |rest| rest.starts_with(' '));
+    fits(class) && !all.iter().any(|o| o.len() > class.len() && fits(o))
 }
 
 fn x<T>(r: Result<T, rust_xlsxwriter::XlsxError>) -> Result<T, String> {
@@ -186,6 +193,7 @@ pub fn write_excel(s: &SchoolSetup, path: &std::path::Path) -> Result<(), String
         return Err("There is no timetable to export yet. Build one first.".into());
     }
     let g = Grid { s, rows: &rows };
+    let class_names: Vec<String> = s.master.classes.iter().map(|c| c.name.trim().to_string()).collect();
     let m = &s.master;
     let mut wb = Workbook::new();
 
@@ -235,7 +243,7 @@ pub fn write_excel(s: &SchoolSetup, path: &std::path::Path) -> Result<(), String
                 let mut col = 1u16;
                 for &d in &days {
                     for p in 0..sh.days[d].len() {
-                        let here: Vec<&SessionRow> = rows.iter().filter(|q| q.day == d && q.shift == sh.name && q.classes.iter().any(|n| class_matches(n, c.name.trim())) && (p as u8 + 1) >= q.period && (p as u8 + 1) < q.period + q.length as u8).collect();
+                        let here: Vec<&SessionRow> = rows.iter().filter(|q| q.day == d && q.shift == sh.name && q.classes.iter().any(|n| class_matches(n, c.name.trim(), &class_names)) && (p as u8 + 1) >= q.period && (p as u8 + 1) < q.period + q.length as u8).collect();
                         let fmt = match here.first() {
                             Some(q) => Format::new().set_align(FormatAlign::Center).set_border(FormatBorder::Thin).set_background_color(rgb(&q.color)).set_font_color(ink_on(&q.color)),
                             None => Format::new().set_border(FormatBorder::Thin),
@@ -266,7 +274,7 @@ pub fn write_excel(s: &SchoolSetup, path: &std::path::Path) -> Result<(), String
         };
         for (name, shifts) in names {
             let mine = |q: &SessionRow| match kind {
-                0 => q.classes.iter().any(|c| class_matches(c, &name)),
+                0 => q.classes.iter().any(|c| class_matches(c, &name, &class_names)),
                 1 => q.teachers.contains(&name),
                 _ => q.room.as_deref() == Some(name.as_str()),
             };
@@ -303,6 +311,31 @@ mod tests {
         assert!(r.unplaced.is_empty());
         s.timetable = Some(r.timetable);
         s
+    }
+
+    #[test]
+    fn a_class_called_grade_6_does_not_take_over_grade_6_a() {
+        let all = vec!["Grade 6".to_string(), "Grade 6 A".to_string()];
+        assert!(class_matches("Grade 6", "Grade 6", &all));
+        assert!(!class_matches("Grade 6 A", "Grade 6", &all));
+        assert!(class_matches("Grade 6 A", "Grade 6 A", &all));
+        // a group name after the class still belongs to the class
+        assert!(class_matches("Grade 6 A Boys", "Grade 6 A", &all));
+        assert!(!class_matches("Grade 6 A Boys", "Grade 6", &all));
+        // without a longer class in the way the group still belongs to "Grade 6"
+        assert!(class_matches("Grade 6 Boys", "Grade 6", &all));
+    }
+
+    #[test]
+    fn a_damaged_file_with_period_zero_is_skipped_not_a_crash() {
+        let mut s = built();
+        let n = session_rows(&s).len();
+        s.timetable.as_mut().unwrap().cards[0].period = 0;
+        s.timetable.as_mut().unwrap().cards[1].length = 0;
+        assert_eq!(session_rows(&s).len(), n - 2);
+        let f = std::env::temp_dir().join(format!("tw-damaged-{}.xlsx", std::process::id()));
+        write_excel(&s, &f).unwrap(); // must not panic either
+        let _ = std::fs::remove_file(&f);
     }
 
     #[test]

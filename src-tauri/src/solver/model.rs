@@ -179,6 +179,30 @@ struct Base {
     subject: Option<usize>,
 }
 
+/// For every lesson: on how many days can it really happen? The checker asks the solver's own
+/// model, so both always agree (breaks, rooms, session length, time off and part-time
+/// teachers all count).
+pub fn usable_days_by_lesson(s: &SchoolSetup) -> HashMap<String, u32> {
+    let m = compile(s);
+    s.lessons
+        .iter()
+        .enumerate()
+        .filter_map(|(i, l)| m.cards_of_lesson[i].first().map(|&c| (l.id.clone(), usable_days(&m, c) as u32)))
+        .collect()
+}
+
+fn usable_days(model: &Model, v: usize) -> usize {
+    let mut d: Vec<u8> = model.cards[v].domain.iter().map(|x| x.day).collect();
+    d.dedup();
+    let mut u = d.len();
+    for &t in &model.cards[v].teachers {
+        if let Some(mx) = model.max_days[t] {
+            u = u.min(mx as usize);
+        }
+    }
+    u
+}
+
 pub fn compile(s: &SchoolSetup) -> Model {
     let m = &s.master;
     let nd = s.days.len();
@@ -375,17 +399,7 @@ pub fn compile(s: &SchoolSetup) -> Model {
             let domain = build_domain(&model, &model.cards[v]);
             model.cards[v].domain = domain;
         }
-        let usable = {
-            let mut d: Vec<u8> = model.cards[v].domain.iter().map(|x| x.day).collect();
-            d.dedup();
-            let mut u = d.len();
-            for &t in &model.cards[v].teachers {
-                if let Some(mx) = model.max_days[t] {
-                    u = u.min(mx as usize);
-                }
-            }
-            u
-        };
+        let usable = usable_days(&model, v);
         let cpw = model.cards[v].members.first().map_or(0, |mb| bases[mb.lesson].cpw);
         model.cards[v].same_day_ok = cpw as usize > usable;
     }

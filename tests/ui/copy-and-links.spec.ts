@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { buildTimetable, go, openTimetable, pickEntity, pickView, places, sampleSchool } from './helpers'
+import { buildTimetable, dropOn, go, lessonChip, openTimetable, pickEntity, pickUp, pickView, places, sampleSchool } from './helpers'
 
 test.describe('copy lessons to other classes', () => {
   test('copies a class\'s lessons to a new class after a preview, and will not copy twice', async ({ page }) => {
@@ -121,5 +121,51 @@ test.describe('lessons that must happen at the same time', () => {
     await pickView(page, 'Teacher')
     await pickEntity(page, /Bilal Ahmed/)
     await expect(page.locator('div[draggable="false"][title^="Mathematics "]')).toHaveCount(1)
+  })
+
+  test('taking one linked lesson off the timetable takes its partner off too', async ({ page }) => {
+    await sampleSchool(page, { build: false })
+    await go(page, 'Lessons')
+    await page.getByRole('button', { name: /English · 6A/ }).click()
+    await partner(page).selectOption({ label: 'Mathematics · 6B · BAH · 5 × 1' })
+    await buildTimetable(page)
+    await openTimetable(page)
+    await pickEntity(page, /Grade 6 A/)
+    await expect(page.locator('td div[draggable][title^="English "]')).toHaveCount(5)
+    await page.setViewportSize({ width: 1440, height: 2400 }) // so the "not placed" box is on screen
+    await pickUp(page, lessonChip(page, 'English'))
+    await dropOn(page, page.locator('div.border-dashed', { hasText: 'Not placed yet' }))
+    await expect(page.locator('td div[draggable][title^="English "]')).toHaveCount(4)
+    // the partner session in 6B went with it, so the pair is still at the same time
+    await pickEntity(page, /Grade 6 B/)
+    await expect(page.locator('td div[draggable][title^="Mathematics "]')).toHaveCount(4)
+  })
+
+  test('a linked lesson with a choice of rooms can be dropped on a free slot without an empty room dialog', async ({ page }) => {
+    await sampleSchool(page, { build: false })
+    await go(page, 'Lessons')
+    await page.getByRole('button', { name: /English · 6A/ }).click()
+    await page.getByLabel('Room 1', { exact: true }).check()
+    await page.getByLabel('Room 2', { exact: true }).check()
+    await partner(page).selectOption({ label: 'Mathematics · 6B · BAH · 5 × 1' })
+    // both lessons of the pair have their own rooms to choose from, so the app cannot ask for just one
+    await page.getByRole('button', { name: /Mathematics · 6B/ }).click()
+    await page.getByLabel('Room 3', { exact: true }).check()
+    await page.getByLabel('Room 4', { exact: true }).check()
+    await buildTimetable(page)
+    await openTimetable(page)
+    await pickEntity(page, /Grade 6 A/)
+    await page.setViewportSize({ width: 1440, height: 2400 }) // so every cell and the "not placed" box are on screen
+    // take the pair off, which frees a slot in both classes, then place it again
+    await pickUp(page, lessonChip(page, 'English'))
+    await dropOn(page, page.locator('div.border-dashed', { hasText: 'Not placed yet' }))
+    await expect(page.locator('td div[draggable][title^="English "]')).toHaveCount(4)
+    await pickUp(page, page.locator('div.border-dashed div[draggable][title^="English "]').first())
+    const free = page.locator('td div:not([draggable])[style*="outline"]:not([style*="var(--danger)"])').filter({ hasNot: page.locator('[draggable]') })
+    await expect(free.first()).toBeVisible()
+    await dropOn(page, free.first())
+    await expect(page.locator('td div[draggable][title^="English "]')).toHaveCount(5)
+    await expect(page.getByRole('dialog', { name: 'Choose a room' })).toHaveCount(0)
+    await expect(page.getByRole('alert')).toHaveCount(0)
   })
 })

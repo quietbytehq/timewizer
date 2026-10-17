@@ -1,6 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
+  "description": "The main window may listen for progress events from Rust. Nothing else: file dialogs and file access are handled by the program itself (see src/access.rs).",
   "windows": ["main"],
-  "permissions": ["core:default", "dialog:default"]
+  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
 }

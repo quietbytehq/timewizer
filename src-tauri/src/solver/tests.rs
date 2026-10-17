@@ -1422,3 +1422,35 @@ fn improving_a_relaxed_timetable_keeps_all_other_rules() {
     assert_eq!(s.timetable.as_ref().unwrap().cards.len(), 4);
     assert!(verify::check_with(&s, s.timetable.as_ref().unwrap(), bendable(false, true, true, true)).is_empty());
 }
+
+#[test]
+fn two_sessions_may_share_a_day_when_no_other_day_can_hold_them() {
+    // Doubles need two free periods in a row. Tuesday only has its last period free for the
+    // teacher, so Tuesday cannot hold a double and both sessions have to be on Monday.
+    // The solver allows that, and the independent checker must agree.
+    let mut s = school(4, 2);
+    let mut t = teacher("T");
+    t.time_off = (1..=3).map(|p| off(1, p, 2)).collect();
+    s.master.teachers.push(t);
+    s.master.classes.push(class("C"));
+    s.lessons.push(lesson("L", &["T"], &["C"], 2, 2));
+    let r = must_solve(&s);
+    assert!(r.timetable.cards.iter().all(|c| c.day == 0), "{:?}", r.timetable.cards);
+    assert!(verify::check(&s, &r.timetable).is_empty());
+}
+
+#[test]
+fn improve_returns_the_best_timetable_it_saw_even_when_time_runs_out_mid_search() {
+    let mut s = sample();
+    s.timetable = Some(must_solve(&s).timetable);
+    let w = Weights::default();
+    let (m, _) = state_of(&s);
+    for seed in 1..=60u64 {
+        let mut st = super::state_from(&m, s.timetable.as_ref().unwrap(), &[]);
+        let ms = 5 + seed % 40; // stops at all sorts of moments
+        let res = soft::improve(&mut st, &w, seed, Instant::now() + Duration::from_millis(ms), &AtomicBool::new(false), &mut |_| {});
+        let best = super::state_from_places(&m, &res.best, &vec![false; m.cards.len()]);
+        let real = soft::measure(&best).weighted(&w);
+        assert!((real - res.best_energy).abs() < 1e-6, "seed {seed}: returned a timetable worth {real}, but the best seen was {}", res.best_energy);
+    }
+}

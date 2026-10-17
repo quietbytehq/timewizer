@@ -1,6 +1,6 @@
 use crate::master::*;
 use crate::model::*;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OpenFlags};
 use std::path::Path;
 
 const SCHEMA_VERSION: &str = "1";
@@ -25,6 +25,7 @@ fn init(conn: &Connection) -> rusqlite::Result<()> {
 
 pub fn save(path: &Path, s: &SchoolSetup) -> Result<(), String> {
     let mut conn = Connection::open(path).map_err(|e| format!("Could not open the school file: {e}"))?;
+    lock_down(&conn);
     init(&conn).map_err(|e| e.to_string())?;
     write(&mut conn, s).map_err(|e| format!("Could not save the school file: {e}"))
 }
@@ -101,12 +102,83 @@ fn get_all<T: serde::de::DeserializeOwned>(conn: &Connection, kind: &str) -> rus
         .collect()
 }
 
+/// Turns off SQLite features a hand-made file could use to run its own code.
+fn lock_down(conn: &Connection) {
+    let _ = conn.pragma_update(None, "trusted_schema", "OFF");
+}
+
+const NOT_OURS: &str = "This does not look like a Timewizer school file.";
+
+/// Opens a school file. Anything wrong with the file (not ours, from a newer version, damaged,
+/// or holding values that make no sense) comes back as a plain message, never a crash.
 pub fn load(path: &Path) -> Result<SchoolSetup, String> {
+    if path.is_dir() {
+        return Err("That is a folder, not a school file.".into());
+    }
     if !path.exists() {
         return Err("That file could not be found.".into());
     }
-    let conn = Connection::open(path).map_err(|e| format!("Could not open the school file: {e}"))?;
-    read(&conn).map_err(|_| "This does not look like a Timewizer school file.".to_string())
+    // Read-only: opening a school must never change the file.
+    let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX)
+        .map_err(|e| format!("Could not open the school file: {e}"))?;
+    lock_down(&conn);
+    let version: String = conn
+        .query_row("SELECT value FROM meta WHERE key = 'schema_version'", [], |r| r.get(0))
+        .map_err(|_| NOT_OURS.to_string())?;
+    match version.trim().parse::<u32>() {
+        Ok(v) if v > SCHEMA_VERSION.parse::<u32>().unwrap_or(1) => {
+            return Err("This school file was made by a newer version of Timewizer. Please update Timewizer to open it.".into())
+        }
+        Ok(_) => {}
+        Err(_) => return Err(NOT_OURS.into()),
+    }
+    let setup = read(&conn).map_err(|e| format!("This school file is damaged or incomplete and could not be read ({e})."))?;
+    sanity_check(&setup)?;
+    Ok(setup)
+}
+
+/// Checks the loaded data for values the rest of the program cannot work with (a hand-edited or
+/// damaged file). Mistakes a person can fix in the app are left to `SchoolSetup::validate`.
+fn sanity_check(s: &SchoolSetup) -> Result<(), String> {
+    let damaged = |what: String| Err(format!("This school file is damaged: {what}"));
+    if s.days.len() != 7 {
+        return damaged(format!("it lists {} days of the week instead of 7.", s.days.len()));
+    }
+    if s.shifts.is_empty() {
+        return damaged("it has no shifts.".into());
+    }
+    for sh in &s.shifts {
+        if sh.days.len() != 7 {
+            return damaged(format!("the shift \"{}\" does not have 7 days.", sh.name));
+        }
+        if sh.days.iter().any(|d| d.len() > 24) {
+            return damaged(format!("the shift \"{}\" has more than 24 periods in a day.", sh.name));
+        }
+    }
+    // Zero is allowed here: a person can save a half-finished lesson, and the checks tell them to fix it.
+    // Absurdly large numbers can only come from a damaged file and would overflow the maths later.
+    for l in &s.lessons {
+        if l.periods_per_card > 24 {
+            return damaged(format!("a lesson has {} periods in a row (the most possible is 24).", l.periods_per_card));
+        }
+        if l.cards_per_week > 200 {
+            return damaged(format!("a lesson has {} sessions a week (the most possible is 200).", l.cards_per_week));
+        }
+    }
+    // A timetable can be out of date (a lesson or period was removed after building); that is
+    // shown to the person. But periods count from 1, so a card at period 0 is plainly damaged.
+    if let Some(t) = &s.timetable {
+        for c in &t.cards {
+            if c.number == 0 || c.period == 0 || c.length == 0 || c.day > 6 {
+                return damaged(format!(
+                    "the timetable places a lesson at a time that does not exist (day {}, period {}).",
+                    c.day as u32 + 1,
+                    c.period
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn read(conn: &Connection) -> rusqlite::Result<SchoolSetup> {
@@ -229,6 +301,105 @@ mod tests {
         let p = tmp("junk");
         std::fs::write(&p, b"hello, not a database").unwrap();
         assert!(load(&p).is_err());
+        let _ = std::fs::remove_file(p);
+    }
+
+    fn saved(name: &str, s: &SchoolSetup) -> std::path::PathBuf {
+        let p = tmp(name);
+        let _ = std::fs::remove_file(&p);
+        save(&p, s).unwrap();
+        p
+    }
+    fn edit(p: &std::path::Path, sql: &str) {
+        Connection::open(p).unwrap().execute_batch(sql).unwrap();
+    }
+    fn message(p: &std::path::Path) -> String {
+        let e = load(p).unwrap_err();
+        let _ = std::fs::remove_file(p);
+        e
+    }
+
+    #[test]
+    fn bad_files_get_clear_messages() {
+        // not a database, an empty file, a folder, a missing file
+        let p = tmp("text");
+        std::fs::write(&p, b"hello").unwrap();
+        assert_eq!(message(&p), NOT_OURS);
+        let p = tmp("empty");
+        std::fs::write(&p, b"").unwrap();
+        assert_eq!(message(&p), NOT_OURS);
+        assert!(load(&std::env::temp_dir()).unwrap_err().contains("folder"));
+        assert!(load(&tmp("missing")).unwrap_err().contains("could not be found"));
+        // a database that is not ours
+        let p = tmp("other");
+        let _ = std::fs::remove_file(&p);
+        edit(&p, "CREATE TABLE photos (id INTEGER)");
+        assert_eq!(message(&p), NOT_OURS);
+        // ours, but from the future
+        let p = saved("future", &SchoolSetup::default_new("X"));
+        edit(&p, "UPDATE meta SET value = '99' WHERE key = 'schema_version'");
+        assert!(message(&p).contains("newer version"));
+        // a damaged part
+        let p = saved("damaged", &SchoolSetup::default_new("X"));
+        edit(&p, "INSERT INTO entities VALUES ('lesson', 0, 'l', '{not json')");
+        assert!(message(&p).contains("damaged or incomplete"));
+        // a missing part
+        let p = saved("nodays", &SchoolSetup::default_new("X"));
+        edit(&p, "DELETE FROM days WHERE idx > 2");
+        assert!(message(&p).contains("7"));
+    }
+
+    #[test]
+    fn nonsense_values_are_refused_instead_of_crashing_later() {
+        let mut s = SchoolSetup::default_new("X");
+        s.master.subjects.push(Subject { id: "s".into(), name: "S".into(), short_name: "S".into(), color: "#000000".into() });
+        s.master.classes.push(Class { id: "c".into(), name: "C".into(), short_name: "C".into(), shift: "morning".into(), ..Default::default() });
+        s.master.teachers.push(Teacher { id: "t".into(), name: "T".into(), short_name: "T".into(), shifts: vec!["morning".into()], ..Default::default() });
+        s.lessons.push(crate::lessons::Lesson {
+            id: "l".into(), subject: "s".into(), teachers: vec!["t".into()],
+            parts: vec![crate::lessons::LessonPart { class_id: "c".into(), group_id: None }],
+            periods_per_card: 1, cards_per_week: 2, rooms: vec![],
+        });
+        let card = |period: u8, length: u32| crate::solver::PlacedCard {
+            lesson_id: "l".into(), number: 1, shift: "morning".into(), day: 0, period, length, room: None, locked: false,
+        };
+        // a normal timetable loads
+        s.timetable = Some(crate::solver::Timetable { cards: vec![card(1, 1)] });
+        let p = saved("fine", &s);
+        assert!(load(&p).is_ok());
+        let _ = std::fs::remove_file(p);
+        // period 0 or a zero-length session
+        for (period, length) in [(0u8, 1u32), (1, 0)] {
+            s.timetable = Some(crate::solver::Timetable { cards: vec![card(period, length)] });
+            let p = saved("badcard", &s);
+            assert!(message(&p).contains("time that does not exist"), "period {period} length {length}");
+        }
+        // an out-of-date timetable (its lesson was deleted, or the day got shorter) still opens:
+        // the app shows a warning, the person's work must not be locked away
+        s.timetable = Some(crate::solver::Timetable { cards: vec![crate::solver::PlacedCard { lesson_id: "ghost".into(), ..card(1, 1) }, card(30, 1)] });
+        let p = saved("stale", &s);
+        assert!(load(&p).is_ok());
+        let _ = std::fs::remove_file(p);
+        // a half-finished lesson (zero sessions) also opens, so the person can fix it
+        s.timetable = None;
+        s.lessons[0].cards_per_week = 0;
+        let p = saved("zero", &s);
+        assert!(load(&p).is_ok());
+        let _ = std::fs::remove_file(p);
+        // absurd sizes only come from a damaged file
+        s.lessons[0].cards_per_week = 4_000_000_000;
+        assert!(message(&saved("huge", &s)).contains("sessions a week"));
+        s.lessons[0].cards_per_week = 2;
+        s.lessons[0].periods_per_card = 500;
+        assert!(message(&saved("tall", &s)).contains("periods in a row"));
+    }
+
+    #[test]
+    fn opening_a_school_does_not_change_the_file() {
+        let p = saved("readonly", &SchoolSetup::default_new("X"));
+        let before = std::fs::read(&p).unwrap();
+        load(&p).unwrap();
+        assert_eq!(std::fs::read(&p).unwrap(), before);
         let _ = std::fs::remove_file(p);
     }
 }

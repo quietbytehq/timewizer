@@ -42,8 +42,9 @@
         listeners.get(args.event)?.delete(args.eventId)
         return null
       }
-      if (cmd === 'plugin:dialog|open') return window.__twDialog.open
-      if (cmd === 'plugin:dialog|save') return window.__twDialog.save
+      // the real app opens its file dialogs from Rust (pick_open / pick_save); tests answer from here
+      if (cmd === 'pick_open') return window.__twDialog.open
+      if (cmd === 'pick_save') return window.__twDialog.save
       window.__twCalls.push(cmd)
       const res = await fetch('/invoke', { method: 'POST', body: JSON.stringify({ cmd, args }) })
       const body = await res.json()

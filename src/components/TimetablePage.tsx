@@ -96,8 +96,9 @@ export function TimetablePage({ setup, onTimetable, history }:
     const o = opts.get(`${shift}-${day}-${period}`)
     if (!o) return
     if (o.status === 'blocked') { setMessage(o.reasons.join(' ')); return }
+    // Only ask when the backend really offers a choice (a linked group may have none to offer).
     const pool = lesson(r.lessonId)?.rooms.length ?? 0
-    if (pool > 1) setPicker({ ...r, day, period, rooms: o.rooms, current: null })
+    if (pool > 1 && o.rooms.length > 1) setPicker({ ...r, day, period, rooms: o.rooms, current: null })
     else doMove(r, day, period, null)
   }
   const unplace = () => {
@@ -105,7 +106,9 @@ export function TimetablePage({ setup, onTimetable, history }:
     if (!r || !r.placed) return
     const c = cards.find(x => same(x, r))
     if (c?.locked) { setMessage('This lesson is locked. Unlock it first to take it off the timetable.'); return }
-    onTimetable({ cards: cards.filter(x => !same(x, r)) })
+    // A "same time" link keeps its lessons together: take the whole group off, like locking does.
+    const group = new Set(setup.links.find(k => k.lessons.includes(r.lessonId))?.lessons ?? [r.lessonId])
+    onTimetable({ cards: cards.filter(x => !(group.has(x.lessonId) && x.number === r.number)) })
   }
   const toggleLock = (r: Ref) => {
     const lock = !cards.find(c => same(c, r))?.locked
@@ -116,7 +119,7 @@ export function TimetablePage({ setup, onTimetable, history }:
     try {
       const list = await api.slotOptions(setup, c.lessonId, c.number)
       const o = list.find(x => x.day === c.day && x.period === c.period)
-      if (o) setPicker({ lessonId: c.lessonId, number: c.number, day: c.day, period: c.period, rooms: o.rooms, current: c.room })
+      if (o && o.rooms.length > 0) setPicker({ lessonId: c.lessonId, number: c.number, day: c.day, period: c.period, rooms: o.rooms, current: c.room })
     } catch (e) { fail(e) }
   }
 
