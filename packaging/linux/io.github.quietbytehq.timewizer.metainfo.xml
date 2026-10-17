@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.quietbytehq.timewizer</id>
+
+  <name>Timewizer</name>
+  <summary>Build school timetables on your own computer</summary>
+  <developer id="io.github.quietbytehq">
+    <name>Timewizer contributors</name>
+  </developer>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+
+  <description>
+    <p>
+      Timewizer is a timetable maker for a single school. Enter your teachers, classes, rooms and
+      lessons, and Timewizer places every lesson so that nobody is in two places at once.
+    </p>
+    <p>It works fully offline, with no account or login. Each school is one file you can save, copy and open again.</p>
+    <p>Features:</p>
+    <ul>
+      <li>Morning and afternoon shifts, with their own periods and bell times for each day</li>
+      <li>Teacher limits, time off, rooms, double periods and lessons that must happen at the same time</li>
+      <li>Import from Excel or CSV, with a clear message for every row that cannot be imported</li>
+      <li>Check before building, with problems explained in plain English</li>
+      <li>Drag and drop editing with swap, lock and undo, and a quality improver</li>
+      <li>Print or export timetables as PDF, pictures, Excel or CSV for every class, teacher and room</li>
+      <li>Light and dark mode</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">io.github.quietbytehq.timewizer.desktop</launchable>
+
+  <provides>
+    <binary>timewizer</binary>
+    <mediatype>application/x-timewizer</mediatype>
+  </provides>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/quietbytehq/timewizer/main/docs/screenshots/light/17-timetable-class.png</image>
+      <caption>A class timetable, with lessons coloured by subject</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/quietbytehq/timewizer/main/docs/screenshots/light/21-timetable-master.png</image>
+      <caption>The master view shows every class at once</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/quietbytehq/timewizer/main/docs/screenshots/light/14-check-ok.png</image>
+      <caption>Checks before building the timetable</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/quietbytehq/timewizer/main/docs/screenshots/dark/18-timetable-dragging.png</image>
+      <caption>Dragging a lesson: free slots are green, blocked slots are red (dark mode)</caption>
+    </screenshot>
+  </screenshots>
+
+  <url type="homepage">https://github.com/quietbytehq/timewizer</url>
+  <url type="bugtracker">https://github.com/quietbytehq/timewizer/issues</url>
+  <url type="vcs-browser">https://github.com/quietbytehq/timewizer</url>
+  <url type="help">https://github.com/quietbytehq/timewizer/blob/main/docs/Timewizer-User-Guide.pdf</url>
+
+  <categories>
+    <category>Education</category>
+  </categories>
+  <keywords>
+    <keyword>timetable</keyword>
+    <keyword>school</keyword>
+    <keyword>schedule</keyword>
+    <keyword>teacher</keyword>
+  </keywords>
+
+  <content_rating type="oars-1.1"/>
+
+  <branding>
+    <color type="primary" scheme_preference="light">#EFE6D8</color>
+    <color type="primary" scheme_preference="dark">#18343F</color>
+  </branding>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <requires>
+    <display_length compare="ge">900</display_length>
+  </requires>
+
+  <releases>
+    <release version="0.1.2" date="2026-10-17">
+      <description>
+        <p>Snap and Flatpak packaging.</p>
+      </description>
+    </release>
+    <release version="0.1.1" date="2026-10-17">
+      <description>
+        <p>Bug fixes and safety improvements.</p>
+        <ul>
+          <li>Names with commas, like "Khan, Ayesha", now import correctly</li>
+          <li>Taking one lesson of a same-time pair off the timetable now takes its partner too</li>
+          <li>School files are checked when they open, with a clear message if one is damaged</li>
+          <li>The app only reads and writes files you choose</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.1.0" date="2026-10-16">
+      <description>
+        <p>First release.</p>
+      </description>
+    </release>
+  </releases>
+</component>

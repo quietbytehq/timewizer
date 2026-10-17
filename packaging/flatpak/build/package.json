@@ -1,0 +1,43 @@
+{
+  "name": "timewizer",
+  "private": true,
+  "version": "0.1.2",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "test:ui": "npm run check:cargo && npm run build && playwright test",
+    "test:ui:only": "playwright test",
+    "check:cargo": "node scripts/check-cargo.mjs",
+    "release": "node scripts/release.mjs",
+    "release:linux": "node scripts/release.mjs",
+    "guide": "node scripts/build-guide.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/domine": "^5.3.0",
+    "@fontsource-variable/nunito-sans": "^5.3.0",
+    "@radix-ui/react-slot": "^1.5.0",
+    "@tauri-apps/api": "^2.12.4",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "framer-motion": "^14.2.0",
+    "jspdf": "^4.2.1",
+    "lucide-react": "^1.57.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tailwind-merge": "^3.7.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "~6.0.2",
+    "vite": "^8.3.0"
+  }
+}

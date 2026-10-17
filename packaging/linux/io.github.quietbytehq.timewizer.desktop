@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Timewizer
+GenericName=School timetable maker
+Comment=Build school timetables on your own computer
+Exec=timewizer %f
+Icon=io.github.quietbytehq.timewizer
+Terminal=false
+Categories=Education;
+MimeType=application/x-timewizer;
+Keywords=timetable;school;schedule;teacher;lessons;

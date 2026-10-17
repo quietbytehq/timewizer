@@ -1,0 +1,88 @@
+name: timewizer
+base: core24
+adopt-info: timewizer
+summary: Build school timetables on your own computer
+description: |
+  Timewizer is a timetable maker for a single school. Enter your teachers, classes,
+  rooms and lessons, and Timewizer places every lesson so that nobody is in two
+  places at once. It works fully offline, with no account or login. Each school is
+  one file you can save, copy and open again.
+
+  Features: morning and afternoon shifts with their own bell times, teacher limits
+  and time off, rooms, double periods, lessons that must happen at the same time,
+  import from Excel or CSV, checks before building, drag and drop editing, and
+  printing or exporting to PDF, pictures, Excel and CSV.
+license: Apache-2.0
+website: https://github.com/quietbytehq/timewizer
+source-code: https://github.com/quietbytehq/timewizer
+issues: https://github.com/quietbytehq/timewizer/issues
+contact: https://github.com/quietbytehq/timewizer/issues
+
+grade: stable
+confinement: strict
+
+platforms:
+  amd64:
+
+apps:
+  timewizer:
+    command: usr/bin/timewizer
+    extensions: [gnome]
+    common-id: io.github.quietbytehq.timewizer
+    desktop: usr/share/applications/io.github.quietbytehq.timewizer.desktop
+    # Only what the app needs: the person's own files (school files, imports, exports) and USB sticks.
+    # No network access: Timewizer is fully offline.
+    plugs:
+      - home
+      - removable-media
+    environment:
+      # WebKitGTK starts its helper programs from a fixed path; point it inside the snap.
+      WEBKIT_EXEC_PATH: $SNAP/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1
+      # WebKit's own sandbox cannot nest inside the snap sandbox, which already confines the app.
+      WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS: "1"
+
+layout:
+  /usr/lib/x86_64-linux-gnu/webkit2gtk-4.1:
+    bind: $SNAP/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1
+
+parts:
+  timewizer:
+    plugin: nil
+    source: .
+    build-snaps:
+      - node/22/stable
+    build-packages:
+      - build-essential
+      - curl
+      - file
+      - pkg-config
+      - libssl-dev
+      - libwebkit2gtk-4.1-dev
+      - libgtk-3-dev
+      - librsvg2-dev
+      - libayatana-appindicator3-dev
+    stage-packages:
+      - libwebkit2gtk-4.1-0
+      - shared-mime-info
+    override-build: |
+      set -eu
+      craftctl default
+      # Rust (the snap build has network access).
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+      . "$HOME/.cargo/env"
+      npm ci
+      npm run build
+      cargo build --release --manifest-path src-tauri/Cargo.toml --bin timewizer --features tauri/custom-protocol
+      install -Dm755 src-tauri/target/release/timewizer "$CRAFT_PART_INSTALL/usr/bin/timewizer"
+
+      id=io.github.quietbytehq.timewizer
+      install -Dm644 packaging/linux/$id.metainfo.xml "$CRAFT_PART_INSTALL/usr/share/metainfo/$id.metainfo.xml"
+      install -Dm644 packaging/linux/$id.xml "$CRAFT_PART_INSTALL/usr/share/mime/packages/$id.xml"
+      install -Dm644 assets/timewizer-logo.svg "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/scalable/apps/$id.svg"
+      install -Dm644 packaging/linux/$id.desktop "$CRAFT_PART_INSTALL/usr/share/applications/$id.desktop"
+      # Inside a snap the icon is found by its path.
+      sed -i "s|^Icon=.*|Icon=\${SNAP}/usr/share/icons/hicolor/scalable/apps/$id.svg|" "$CRAFT_PART_INSTALL/usr/share/applications/$id.desktop"
+
+      craftctl set version="$(node -p "require('./package.json').version")"
+    parse-info:
+      - usr/share/metainfo/io.github.quietbytehq.timewizer.metainfo.xml

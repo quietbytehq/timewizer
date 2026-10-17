@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2
+
+- Snap and Flatpak packaging.
+
 ## 0.1.1
 
 Fixes

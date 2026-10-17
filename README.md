@@ -1,14 +1,14 @@
 # Timewizer
 
 Timetables for a single school, on your own computer. Offline, one file per school, no login.
-Open source (Apache-2.0).
+Open source (Apache-2.0). Source code and downloads: <https://github.com/quietbytehq/timewizer> (installers are on the [Releases page](https://github.com/quietbytehq/timewizer/releases)).
 
 ## Install (Windows)
 
-Download from the project's Releases page, then either:
+Download from the project's [Releases page](https://github.com/quietbytehq/timewizer/releases), then either:
 
-- **Setup .exe** (recommended): double-click `Timewizer_0.1.1_x64-setup.exe` and follow the steps. Then open **Timewizer** from the Start menu.
-- **.msi** (for school IT staff): `msiexec /i Timewizer_0.1.1_x64_en-US.msi` (add `/qn` for a silent install).
+- **Setup .exe** (recommended): double-click `Timewizer_0.1.2_x64-setup.exe` and follow the steps. Then open **Timewizer** from the Start menu.
+- **.msi** (for school IT staff): `msiexec /i Timewizer_0.1.2_x64_en-US.msi` (add `/qn` for a silent install).
 
 The installers are not code-signed yet, so Windows may show a blue **"Windows protected your PC"** screen. Press **More info**, then **Run anyway**. Timewizer needs Microsoft's WebView2, which is already part of Windows 10/11; if it is missing, the installer downloads it (internet needed once).
 
@@ -16,18 +16,18 @@ Double-clicking a `.twz` school file opens it in Timewizer.
 
 ## Install (Ubuntu / Linux)
 
-Download from the project's Releases page (or build it yourself, below), then either:
+Download from the project's [Releases page](https://github.com/quietbytehq/timewizer/releases) (or build it yourself, below), then either:
 
-- **.deb** (recommended): `sudo apt install ./Timewizer_0.1.1_amd64.deb`, then open **Timewizer** from the applications menu.
-- **AppImage** (no install): `chmod +x Timewizer_0.1.1_amd64.AppImage` and double-click it, or run it from a terminal.
+- **.deb** (recommended): `sudo apt install ./Timewizer_0.1.2_amd64.deb`, then open **Timewizer** from the applications menu.
+- **AppImage** (no install): `chmod +x Timewizer_0.1.2_amd64.AppImage` and double-click it, or run it from a terminal.
 
 New to the app? Read the short guide: [docs/Timewizer-User-Guide.pdf](docs/Timewizer-User-Guide.pdf).
 Sample school data to try it with is in [samples/](samples/).
 
 ## Make a release (maintainers)
 
-Push a tag: `git tag v0.1.1 && git push origin v0.1.1`. GitHub builds the Linux and Windows installers
-and attaches them to a **draft** release (Releases page) for you to check and publish. You can also run the
+Push a tag: `git tag v0.1.2 && git push origin v0.1.2`. GitHub builds the Linux and Windows installers
+and attaches them to a **draft** release ([Releases page](https://github.com/quietbytehq/timewizer/releases)) for you to check and publish. You can also run the
 **Release** workflow by hand from the Actions tab to just get the files.
 
 ## Build it yourself
@@ -46,3 +46,11 @@ npm run guide             # rebuild the PDF user guide
 
 Example exports (PDF, Excel, CSV, picture) are in [docs/examples/](docs/examples/) and screenshots
 of every page, in light and dark, are in [docs/screenshots/](docs/screenshots/).
+
+## Snap Store and Flathub
+
+Packaging files for the Snap Store and Flathub, with step-by-step instructions, are in [docs/PACKAGING.md](docs/PACKAGING.md).
+
+## App ID
+
+The application ID is `io.github.quietbytehq.timewizer` (used by Flathub and the Linux desktop).
