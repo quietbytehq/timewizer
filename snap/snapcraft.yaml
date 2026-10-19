@@ -13,6 +13,7 @@ description: |
   import from Excel or CSV, checks before building, drag and drop editing, and
   printing or exporting to PDF, pictures, Excel and CSV.
 license: Apache-2.0
+icon: snap/gui/timewizer.png
 website: https://github.com/quietbytehq/timewizer
 source-code: https://github.com/quietbytehq/timewizer
 issues: https://github.com/quietbytehq/timewizer/issues
@@ -80,8 +81,8 @@ parts:
       install -Dm644 packaging/linux/$id.xml "$CRAFT_PART_INSTALL/usr/share/mime/packages/$id.xml"
       install -Dm644 assets/timewizer-logo.svg "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/scalable/apps/$id.svg"
       install -Dm644 packaging/linux/$id.desktop "$CRAFT_PART_INSTALL/usr/share/applications/$id.desktop"
-      # Inside a snap the icon is found by its path.
-      sed -i "s|^Icon=.*|Icon=\${SNAP}/usr/share/icons/hicolor/scalable/apps/$id.svg|" "$CRAFT_PART_INSTALL/usr/share/applications/$id.desktop"
+      # Inside a snap the icon is found by its path: snap/gui/timewizer.png ends up in meta/gui.
+      sed -i 's|^Icon=.*|Icon=${SNAP}/meta/gui/timewizer.png|' "$CRAFT_PART_INSTALL/usr/share/applications/$id.desktop"
 
       craftctl set version="$(node -p "require('./package.json').version")"
     parse-info:

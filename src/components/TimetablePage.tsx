@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { DoorOpen, Lock, Redo2, Undo2, Unlock, ZoomIn, ZoomOut } from 'lucide-react'
 import { api, errText } from '@/lib/api'
-import type { ImproveReport, PlacedCard, SchoolSetup, Shift, SlotInfo, SwapInfo, Timetable } from '@/lib/types'
+import type { ImproveReport, PlacedCard, Room, SchoolSetup, Shift, SlotInfo, Subject, SwapInfo, Timetable } from '@/lib/types'
 import { Button, Card, inputCls, inputStyle } from '@/components/ui'
 import { ImproveButton, QualityTable } from './Quality'
 import { inkOn } from '@/lib/color'
@@ -13,6 +13,57 @@ interface Picker extends Ref { day: number; period: number; rooms: SlotInfo['roo
 const SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const tint = (c: string, n: number) => `color-mix(in srgb, var(${c}) ${n}%, transparent)`
 const same = (a: Ref, b: Ref) => a.lessonId === b.lessonId && a.number === b.number
+
+/** What a lesson chip can do. Kept in a ref so chips do not need new callbacks on every render. */
+interface ChipActions {
+  startDrag: (r: Ref, shift: string, placed: boolean) => void
+  endDrag: () => void
+  swapWith: (r: Ref) => void
+  openRoomPicker: (c: PlacedCard) => void
+  toggleLock: (r: Ref) => void
+}
+interface ChipProps {
+  r: Ref; shift: string; c: PlacedCard | null; compact: boolean; z: number; mode: Mode
+  sub?: Subject; teachers: string; classes: string; room?: Room; hasPool: boolean
+  dragging: boolean // this very lesson is being dragged
+  sw?: SwapInfo // can the dragged lesson swap with this one?
+  act: { current: ChipActions }
+}
+
+/** One lesson on the grid. Memoised, so a big grid only redraws the lessons that changed. */
+const Chip = memo(function Chip({ r, shift, c, compact, z, mode, sub, teachers, classes, room, hasPool, dragging, sw, act }: ChipProps) {
+  // The lock / room buttons exist only while the pointer is over the lesson: a large school has
+  // thousands of lessons on screen and a hidden toolbar on each one made the grid slow.
+  const [hot, setHot] = useState(false)
+  const locked = !!c?.locked
+  const swapStyle = sw?.ok ? { outline: '2px solid var(--success)', outlineOffset: 1 } : {}
+  return (
+    <div draggable={!locked}
+      onMouseEnter={() => c && setHot(true)} onMouseLeave={() => setHot(false)}
+      onFocusCapture={() => c && setHot(true)} onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setHot(false) }}
+      onDragOver={e => { if (sw?.ok) { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move' } }}
+      onDrop={e => { if (sw?.ok) { e.preventDefault(); e.stopPropagation(); act.current.swapWith(r) } }}
+      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', `${r.lessonId}#${r.number}`); act.current.startDrag(r, shift, !!c) }}
+      onDragEnd={() => act.current.endDrag()}
+      className={`group relative h-full min-h-0 overflow-hidden rounded-lg px-1.5 py-0.5 leading-tight shadow-sm ${locked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'}`}
+      style={{ background: sub?.color ?? 'var(--line)', color: inkOn(sub?.color ?? '#DCD0BC'), opacity: dragging ? 0.4 : 1, ...swapStyle }}
+      title={`${sub?.name ?? ''} · ${classes} · ${teachers}${room ? ` · ${room.name}` : ''}${locked ? ' · locked' : ''}${sw ? (sw.ok ? ' — drop to swap' : ` — cannot swap: ${sw.reasons.join(' ')}`) : ''}`}>
+      <div className={compact ? 'truncate font-bold' : 'truncate text-xs font-bold'} style={compact ? { fontSize: `${0.62 * z}rem` } : undefined}>
+        {sub?.shortName ?? sub?.name}{locked && <Lock size={10} className="ml-1 inline" />}
+      </div>
+      {!compact && <div className="truncate text-[11px] opacity-80">{mode === 'class' ? teachers : mode === 'teacher' ? classes : `${classes} · ${teachers}`}{room && mode !== 'room' ? ` · ${room.shortName}` : ''}</div>}
+      {compact && z >= 1.3 && <div className="truncate opacity-80" style={{ fontSize: `${0.52 * z}rem` }}>{teachers}</div>}
+      {c && hot && (
+        <div className="absolute right-0.5 top-0.5 flex gap-0.5">
+          {hasPool && <button type="button" aria-label="Choose room" title="Choose room" onClick={() => act.current.openRoomPicker(c)}
+            className="rounded bg-white/80 p-0.5"><DoorOpen size={12} /></button>}
+          <button type="button" aria-label={locked ? 'Unlock' : 'Lock'} title={locked ? 'Unlock' : 'Lock in place'} onClick={() => act.current.toggleLock(r)}
+            className="rounded bg-white/80 p-0.5">{locked ? <Unlock size={12} /> : <Lock size={12} />}</button>
+        </div>
+      )}
+    </div>
+  )
+})
 
 export interface History { undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean }
 
@@ -41,7 +92,26 @@ export function TimetablePage({ setup, onTimetable, history }:
     api.timetableConsistent(setup).then(ok => { if (id === seq.current) setConsistent(ok) }).catch(() => {})
   }, [setup])
 
-  const lesson = (id: string) => setup.lessons.find(l => l.id === id)
+  // Lookups by id, built once. The Master view draws thousands of cells; scanning every lesson,
+  // teacher and class for each one made it crawl on a large school.
+  const lessonById = useMemo(() => new Map(setup.lessons.map(l => [l.id, l])), [setup.lessons])
+  const subjectById = useMemo(() => new Map(m.subjects.map(x => [x.id, x])), [m.subjects])
+  const teacherById = useMemo(() => new Map(m.teachers.map(x => [x.id, x])), [m.teachers])
+  const classById = useMemo(() => new Map(m.classes.map(x => [x.id, x])), [m.classes])
+  const roomById = useMemo(() => new Map(m.rooms.map(x => [x.id, x])), [m.rooms])
+  const lesson = (id: string) => lessonById.get(id)
+  // Which sessions cover each (shift, day, period), so a cell does not have to look through every session.
+  const slotIndex = useMemo(() => {
+    const idx = new Map<string, PlacedCard[]>()
+    for (const c of cards) {
+      for (let k = 0; k < c.length; k++) {
+        const key = `${c.shift}|${c.day}|${c.period + k}`
+        const list = idx.get(key)
+        if (list) list.push(c); else idx.set(key, [c])
+      }
+    }
+    return idx
+  }, [cards])
   const placedKey = useMemo(() => new Set(cards.map(c => `${c.lessonId}#${c.number}`)), [cards])
   const unplaced = useMemo(() => {
     const out: Ref[] = []
@@ -64,8 +134,8 @@ export function TimetablePage({ setup, onTimetable, history }:
     if (mode === 'teacher') return l.teachers.includes(chosen)
     return c.room === chosen
   }
-  const shiftsFor: Shift[] = mode === 'class' ? enabled.filter(s => s.id === m.classes.find(c => c.id === chosen)?.shift)
-    : mode === 'teacher' ? enabled.filter(s => m.teachers.find(t => t.id === chosen)?.shifts.includes(s.id)) : enabled
+  const shiftsFor: Shift[] = mode === 'class' ? enabled.filter(s => s.id === classById.get(chosen ?? '')?.shift)
+    : mode === 'teacher' ? enabled.filter(s => teacherById.get(chosen ?? '')?.shifts.includes(s.id)) : enabled
 
   const fail = (e: unknown) => setMessage(errText(e))
   const doMove = async (r: Ref, day: number, period: number, room: string | null) => {
@@ -123,39 +193,20 @@ export function TimetablePage({ setup, onTimetable, history }:
     } catch (e) { fail(e) }
   }
 
+  const act = useRef<ChipActions>({ startDrag, endDrag, swapWith, openRoomPicker, toggleLock })
+  useLayoutEffect(() => { act.current = { startDrag, endDrag, swapWith, openRoomPicker, toggleLock } })
+
   const chip = (r: Ref, shift: string, c: PlacedCard | null, compact: boolean, z = 1) => {
     const l = lesson(r.lessonId)
-    const sub = m.subjects.find(s => s.id === l?.subject)
-    const teachers = l?.teachers.map(t => m.teachers.find(x => x.id === t)?.shortName).filter(Boolean).join(', ') ?? ''
-    const classes = l?.parts.map(p => m.classes.find(x => x.id === p.classId)?.shortName).filter(Boolean).join(', ') ?? ''
-    const room = m.rooms.find(x => x.id === c?.room)
-    const locked = !!c?.locked
-    const hasPool = (l?.rooms.length ?? 0) > 0
     const sw = c && drag && drag.shift === shift && !same(drag, r) ? swaps.get(`${r.lessonId}#${r.number}`) : undefined
-    const swapStyle = sw?.ok ? { outline: '2px solid var(--success)', outlineOffset: 1 } : {}
     return (
-      <div draggable={!locked}
-        onDragOver={e => { if (sw?.ok) { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move' } }}
-        onDrop={e => { if (sw?.ok) { e.preventDefault(); e.stopPropagation(); swapWith(r) } }}
-        onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', `${r.lessonId}#${r.number}`); startDrag(r, shift, !!c) }}
-        onDragEnd={endDrag}
-        className={`group relative h-full min-h-0 overflow-hidden rounded-lg px-1.5 py-0.5 leading-tight shadow-sm ${locked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'}`}
-        style={{ background: sub?.color ?? 'var(--line)', color: inkOn(sub?.color ?? '#DCD0BC'), opacity: drag && same(drag, r) ? 0.4 : 1, ...swapStyle }}
-        title={`${sub?.name ?? ''} · ${classes} · ${teachers}${room ? ` · ${room.name}` : ''}${locked ? ' · locked' : ''}${sw ? (sw.ok ? ' — drop to swap' : ` — cannot swap: ${sw.reasons.join(' ')}`) : ''}`}>
-        <div className={compact ? 'truncate font-bold' : 'truncate text-xs font-bold'} style={compact ? { fontSize: `${0.62 * z}rem` } : undefined}>
-          {sub?.shortName ?? sub?.name}{locked && <Lock size={10} className="ml-1 inline" />}
-        </div>
-        {!compact && <div className="truncate text-[11px] opacity-80">{mode === 'class' ? teachers : mode === 'teacher' ? classes : `${classes} · ${teachers}`}{room && mode !== 'room' ? ` · ${room.shortName}` : ''}</div>}
-        {compact && z >= 1.3 && <div className="truncate opacity-80" style={{ fontSize: `${0.52 * z}rem` }}>{teachers}</div>}
-        {c && (
-          <div className="absolute right-0.5 top-0.5 hidden gap-0.5 group-hover:flex">
-            {hasPool && <button type="button" aria-label="Choose room" title="Choose room" onClick={() => openRoomPicker(c)}
-              className="rounded bg-white/80 p-0.5"><DoorOpen size={12} /></button>}
-            <button type="button" aria-label={locked ? 'Unlock' : 'Lock'} title={locked ? 'Unlock' : 'Lock in place'} onClick={() => toggleLock(r)}
-              className="rounded bg-white/80 p-0.5">{locked ? <Unlock size={12} /> : <Lock size={12} />}</button>
-          </div>
-        )}
-      </div>
+      <Chip r={r} shift={shift} c={c} compact={compact} z={z} mode={mode} act={act}
+        sub={subjectById.get(l?.subject ?? '')}
+        teachers={l?.teachers.map(t => teacherById.get(t)?.shortName).filter(Boolean).join(', ') ?? ''}
+        classes={l?.parts.map(p => classById.get(p.classId)?.shortName).filter(Boolean).join(', ') ?? ''}
+        room={c?.room ? roomById.get(c.room) : undefined}
+        hasPool={(l?.rooms.length ?? 0) > 0}
+        dragging={!!drag && same(drag, r)} sw={sw} />
     )
   }
 
@@ -174,13 +225,14 @@ export function TimetablePage({ setup, onTimetable, history }:
   }
 
   const cardsAt = (shift: string, day: number, period: number, f: (c: PlacedCard) => boolean) =>
-    cards.filter(c => c.shift === shift && c.day === day && period >= c.period && period < c.period + c.length && f(c))
+    (slotIndex.get(`${shift}|${day}|${period}`) ?? []).filter(f)
 
   const cell = (shift: Shift, day: number, p: number, f: (c: PlacedCard) => boolean, compact: boolean, z = 1) => {
     const here = cardsAt(shift.id, day, p + 1, f)
+    const props = cellProps(shift.id, day, p + 1)
     return (
-      <div {...cellProps(shift.id, day, p + 1)} className={`flex flex-col gap-0.5 rounded-lg ${compact ? '' : 'h-14 w-28'}`}
-        style={{ ...cellProps(shift.id, day, p + 1).style, ...(compact ? { width: `${3.2 * z}rem`, height: `${2.4 * z}rem` } : {}) }}>
+      <div {...props} className={`flex flex-col gap-0.5 rounded-lg ${compact ? '' : 'h-14 w-28'}`}
+        style={{ ...props.style, ...(compact ? { width: `${3.2 * z}rem`, height: `${2.4 * z}rem` } : {}) }}>
         {here.length === 0 && <div className="h-full rounded-lg border border-dashed" style={{ borderColor: 'var(--line)' }} />}
         {here.map(c => c.period === p + 1
           ? <div key={`${c.lessonId}#${c.number}`} className="min-h-0 flex-1">{chip(c, shift.id, c, compact, z)}</div>
@@ -218,29 +270,71 @@ export function TimetablePage({ setup, onTimetable, history }:
     )
   }
 
+  // The Master view can have more than a hundred rows, thousands of cells. Only the rows that are
+  // on screen (plus a few either side) are drawn; the rest are empty spacer rows of the same
+  // height. The rows of the lesson being dragged stay drawn, so the browser can still finish the drag.
+  const masterRef = useRef<HTMLDivElement>(null)
+  const [win, setWin] = useState({ top: 0, height: 700, rowH: 62, bodyTop: 70 })
+  const frame = useRef(0)
+  const readWindow = () => {
+    const el = masterRef.current
+    if (!el) return
+    const tr = el.querySelector<HTMLTableRowElement>('tbody > tr[data-row]')
+    const body = el.querySelector<HTMLElement>('tbody')
+    const table = el.querySelector<HTMLElement>('table')
+    // one row plus the gap between rows (measured on a single row, so spacer rows cannot confuse it)
+    const spacing = table ? parseFloat(getComputedStyle(table).borderSpacing.split(' ').pop() ?? '0') || 0 : 0
+    const rowH = tr ? Math.round(tr.offsetHeight + spacing) : win.rowH
+    const bodyTop = body ? Math.round(body.offsetTop) : win.bodyTop
+    const top = Math.round(el.scrollTop), height = el.clientHeight
+    setWin(w => (w.top === top && w.height === height && w.rowH === rowH && w.bodyTop === bodyTop) ? w : { top, height, rowH, bodyTop })
+  }
+  const onMasterScroll = () => {
+    if (frame.current) return
+    frame.current = requestAnimationFrame(() => { frame.current = 0; readWindow() })
+  }
+  useLayoutEffect(() => { if (mode === 'master') readWindow() })
+
   const masterGrid = () => {
     const shift = enabled.find(s => s.id === masterShift) ?? enabled[0]
     if (!shift) return null
     const rows = m.classes.filter(c => c.shift === shift.id)
     const maxP = (i: number) => shift.days[i]?.length ?? 0
+    const columns = 1 + workingDays.reduce((n, { i }) => n + maxP(i), 0)
+    const OVERSCAN = 4
+    const first = Math.max(0, Math.floor((win.top - win.bodyTop) / Math.max(1, win.rowH)) - OVERSCAN)
+    const last = Math.min(rows.length - 1, Math.ceil((win.top + win.height - win.bodyTop) / Math.max(1, win.rowH)) + OVERSCAN)
+    const pinned = new Set<string>(drag ? (lesson(drag.lessonId)?.parts.map(p => p.classId) ?? []) : [])
+    const shown = rows.map((c, i) => (i >= first && i <= last) || pinned.has(c.id))
+    const out: React.ReactNode[] = []
+    for (let i = 0; i < rows.length; ) {
+      if (!shown[i]) {
+        let j = i
+        while (j < rows.length && !shown[j]) j++
+        out.push(<tr key={`gap-${i}`} aria-hidden="true" style={{ height: (j - i) * win.rowH }}><td colSpan={columns} /></tr>)
+        i = j
+        continue
+      }
+      const c = rows[i]
+      out.push(
+        <tr key={c.id} data-row>
+          <th className="sticky left-0 z-[5] whitespace-nowrap pr-2 text-right font-semibold" style={{ background: 'var(--surface)', fontSize: `${0.8 * zoom}rem` }}>{c.shortName}</th>
+          {workingDays.flatMap(({ i: di }) => Array.from({ length: maxP(di) }, (_, p) => (
+            <td key={`${di}-${p}`}>{cell(shift, di, p, x => !!lesson(x.lessonId)?.parts.some(pt => pt.classId === c.id), true, zoom)}</td>
+          )))}
+        </tr>
+      )
+      i++
+    }
     return (
-      <div className="max-h-[75vh] overflow-auto rounded-xl">
+      <div ref={masterRef} onScroll={onMasterScroll} className="max-h-[75vh] overflow-auto rounded-xl">
         <table className="border-separate border-spacing-0.5" style={{ fontSize: `${0.65 * zoom}rem` }}>
           <thead className="sticky top-0 z-10" style={{ background: 'var(--surface)' }}>
             <tr><th />{workingDays.map(({ i }) => <th key={i} colSpan={maxP(i)} className="eyebrow border-l px-1 py-1" style={{ borderColor: 'var(--line)' }}>{SHORT[i]}</th>)}</tr>
             <tr><th />{workingDays.flatMap(({ i }) => Array.from({ length: maxP(i) }, (_, p) =>
               <th key={`${i}-${p}`} className="font-semibold" style={{ color: 'var(--muted)' }}>{p + 1}</th>))}</tr>
           </thead>
-          <tbody>
-            {rows.map(c => (
-              <tr key={c.id}>
-                <th className="sticky left-0 z-[5] whitespace-nowrap pr-2 text-right font-semibold" style={{ background: 'var(--surface)', fontSize: `${0.8 * zoom}rem` }}>{c.shortName}</th>
-                {workingDays.flatMap(({ i }) => Array.from({ length: maxP(i) }, (_, p) => (
-                  <td key={`${i}-${p}`}>{cell(shift, i, p, x => !!lesson(x.lessonId)?.parts.some(pt => pt.classId === c.id), true, zoom)}</td>
-                )))}
-              </tr>
-            ))}
-          </tbody>
+          <tbody>{out}</tbody>
         </table>
       </div>
     )
@@ -331,8 +425,8 @@ export function TimetablePage({ setup, onTimetable, history }:
               {unplaced.map(r => {
                 const l = lesson(r.lessonId)
                 const classId = l?.parts[0]?.classId
-                const shift = m.classes.find(c => c.id === classId)?.shift ?? ''
-                const cls = l?.parts.map(p => m.classes.find(x => x.id === p.classId)?.shortName).filter(Boolean).join(', ')
+                const shift = classById.get(classId ?? '')?.shift ?? ''
+                const cls = l?.parts.map(p => classById.get(p.classId)?.shortName).filter(Boolean).join(', ')
                 return (
                   <div key={`${r.lessonId}#${r.number}`} className="h-12 w-32">
                     {chip(r, shift, null, false)}

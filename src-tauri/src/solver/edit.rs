@@ -3,9 +3,10 @@
 //! Lessons linked as "same time" move together.
 use super::engine::{Blocker, Pl, State};
 use super::model::{compile, Model, MAXR};
-use super::{card_of, emit, state_from, PlacedCard, Timetable};
+use super::{card_of, emit, group_by_card, state_from, PlacedCard, Timetable};
 use crate::model::SchoolSetup;
 use serde::Serialize;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -161,7 +162,7 @@ pub fn move_card(
     let v = find_card(&m, lesson_id, number)?;
     let mut tt = setup.timetable.clone().unwrap_or_default();
     let mine = |c: &PlacedCard| card_of(&m, &c.lesson_id, c.number) == Some(v);
-    if tt.cards.iter().any(|c| mine(c) && c.locked) {
+    if group_by_card(&m, &tt.cards)[v].iter().any(|c| c.locked) {
         return Err("This lesson is locked. Unlock it first to move it.".into());
     }
     let st = state_from(&m, &tt, &[v]);
@@ -247,24 +248,32 @@ pub fn swap_options(setup: &SchoolSetup, lesson_id: &str, number: u32) -> Result
     let a = find_card(&m, lesson_id, number)?;
     let tt = setup.timetable.clone().unwrap_or_default();
     let mut st = state_from(&m, &tt, &[a]);
-    let a_pcs: Vec<&PlacedCard> = tt.cards.iter().filter(|c| card_of(&m, &c.lesson_id, c.number) == Some(a)).collect();
+    let groups = group_by_card(&m, &tt.cards);
+    let a_pcs = &groups[a];
     let a_old = a_pcs.first().map(|c| Pl::new(c.day, c.period - 1));
-    let a_pref = first_room(&m, a, &a_pcs);
+    let a_pref = first_room(&m, a, a_pcs);
+    // Linked lessons share one card, so the answer for a card is worked out once.
+    let mut answers: HashMap<usize, (bool, Vec<String>)> = HashMap::new();
     let mut out = Vec::new();
     for pc in tt.cards.iter().filter(|c| c.shift == m.shift_ids[m.cards[a].shift]) {
         let Ok(b) = find_card(&m, &pc.lesson_id, pc.number) else { continue };
         if b == a {
             continue;
         }
-        let b_pcs: Vec<&PlacedCard> = tt.cards.iter().filter(|c| card_of(&m, &c.lesson_id, c.number) == Some(b)).collect();
-        let (ok, reasons) = if b_pcs.iter().any(|c| c.locked) {
-            (false, vec!["This lesson is locked.".to_string()])
-        } else {
-            match try_swap(&m, &mut st, a, b, a_old, a_pref, first_room(&m, b, &b_pcs)) {
-                Ok(_) => (true, vec![]),
-                Err(r) => (false, r),
-            }
-        };
+        let (ok, reasons) = answers
+            .entry(b)
+            .or_insert_with(|| {
+                let b_pcs = &groups[b];
+                if b_pcs.iter().any(|c| c.locked) {
+                    (false, vec!["This lesson is locked.".to_string()])
+                } else {
+                    match try_swap(&m, &mut st, a, b, a_old, a_pref, first_room(&m, b, b_pcs)) {
+                        Ok(_) => (true, vec![]),
+                        Err(r) => (false, r),
+                    }
+                }
+            })
+            .clone();
         out.push(SwapInfo { lesson_id: pc.lesson_id.clone(), number: pc.number, ok, reasons });
     }
     Ok(out)
@@ -280,8 +289,8 @@ pub fn swap_cards(setup: &SchoolSetup, lesson_id: &str, number: u32, with_lesson
         return Err("Choose a different lesson to swap with.".into());
     }
     let mut tt = setup.timetable.clone().unwrap_or_default();
-    let of = |tt: &Timetable, v: usize| -> Vec<PlacedCard> { tt.cards.iter().filter(|c| card_of(&m, &c.lesson_id, c.number) == Some(v)).cloned().collect() };
-    let (pa, pb) = (of(&tt, a), of(&tt, b));
+    let groups = group_by_card(&m, &tt.cards);
+    let (pa, pb): (Vec<PlacedCard>, Vec<PlacedCard>) = (groups[a].iter().map(|c| (*c).clone()).collect(), groups[b].iter().map(|c| (*c).clone()).collect());
     if pb.is_empty() {
         return Err("That lesson is not on the timetable.".into());
     }

@@ -62,7 +62,7 @@ the two `WEBKIT_` lines and the `layout` in `snapcraft.yaml` are there for that.
 
 ### Publish
 
-Pushing a tag like `v0.1.2` runs the **snap** job, which builds the snap and uploads it to the
+Pushing a tag like `v0.1.3` runs the **snap** job, which builds the snap and uploads it to the
 **stable** channel. You can also run the **Release** workflow by hand (Actions tab): it then only builds
 the snap and attaches it to the run, without publishing.
 
@@ -72,7 +72,7 @@ Good to know:
 - Removable drives (the `removable-media` access) are not connected automatically. People can run
   `sudo snap connect timewizer:removable-media`. To have it connected at install, ask the Snap Store
   team on the forum (<https://forum.snapcraft.io>, category "store requests") once the snap is live.
-- Each upload needs a new version number. If a release goes wrong after the snap was uploaded, fix it and release the next version (for example 0.1.2) instead of reusing the number.
+- Each upload needs a new version number. If a release goes wrong after the snap was uploaded, fix it and release the next version (for example 0.1.4) instead of reusing the number.
 
 ## Flathub
 

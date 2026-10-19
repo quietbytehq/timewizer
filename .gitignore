@@ -12,3 +12,4 @@ playwright-report/
 # Release builds
 release/
 *.snap
+tests/stress/.results/

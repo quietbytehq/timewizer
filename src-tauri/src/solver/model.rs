@@ -62,6 +62,8 @@ pub struct Model {
     pub subject_names: Vec<String>,
     pub day_names: Vec<String>,
     pub lesson_ids: Vec<String>,
+    /// Lesson id -> position in `lesson_ids` (so a session can be found without scanning every lesson).
+    pub lesson_index: HashMap<String, usize>,
     pub lesson_titles: Vec<String>,
     pub cards: Vec<CardInfo>,
     /// For each lesson, the card holding session n (index n-1).
@@ -71,7 +73,9 @@ pub struct Model {
     pub max_per_week: Vec<Option<u32>>,
     pub max_days: Vec<Option<u32>>,
     pub max_consecutive: Vec<Option<u32>>,
-    /// Most sessions of one subject per class bucket per day: [class * nsub + subject].
+    /// Most sessions of one subject a day for each group of students (atomic bucket) of a class:
+    /// [(class * nsub + subject) * 64 + bucket]. Raised above the school's setting only as far as
+    /// the number of sessions that bucket has forces it to be.
     pub subj_limit: Vec<u32>,
     /// Forbidden (state 2) and "avoid" (state 1) grids: entity * slots + slot.
     pub t_forb: Vec<bool>,
@@ -359,6 +363,7 @@ pub fn compile(s: &SchoolSetup) -> Model {
         subject_names: m.subjects.iter().map(|x| x.name.trim().to_string()).collect(),
         day_names: s.days.iter().map(|d| d.name.clone()).collect(),
         lesson_ids: s.lessons.iter().map(|x| x.id.clone()).collect(),
+        lesson_index: s.lessons.iter().enumerate().map(|(i, x)| (x.id.clone(), i)).collect(),
         lesson_titles: bases.iter().map(|b| b.title.clone()).collect(),
         cards: Vec::new(),
         cards_of_lesson: vec![Vec::new(); s.lessons.len()],
@@ -366,7 +371,7 @@ pub fn compile(s: &SchoolSetup) -> Model {
         max_per_week: m.teachers.iter().map(|t| s.settings.max_per_week(t)).collect(),
         max_days: m.teachers.iter().map(|t| t.max_days_per_week).collect(),
         max_consecutive: m.teachers.iter().map(|t| t.max_consecutive).collect(),
-        subj_limit: vec![s.settings.max_same_subject_per_day.max(1); nc * nsub.max(1)],
+        subj_limit: vec![s.settings.max_same_subject_per_day.max(1); nc * nsub.max(1) * 64],
         t_forb, c_forb, r_forb, t_avoid, c_avoid, periods, cross_ok,
     };
 
@@ -440,10 +445,11 @@ pub fn compile(s: &SchoolSetup) -> Model {
             .count()
             .min(usable_min.get(&(ci, sub)).copied().unwrap_or(usize::MAX))
             .max(1) as u32;
-        let most = *e.iter().max().unwrap_or(&0);
-        let need = (most + days - 1) / days;
-        let cur = &mut model.subj_limit[ci * nsub + sub];
-        *cur = (*cur).max(need);
+        for (b, &n) in e.iter().enumerate() {
+            let need = (n + days - 1) / days;
+            let cur = &mut model.subj_limit[(ci * nsub + sub) * 64 + b];
+            *cur = (*cur).max(need);
+        }
     }
 
     // ---- difficulty (blueprint section 7, phase 1) ----

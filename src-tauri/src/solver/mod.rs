@@ -5,6 +5,7 @@
 //! over in plain English. `verify` is an independent checker of the hard rules.
 pub mod edit;
 mod engine;
+mod repair;
 pub mod soft;
 mod model;
 /// Independent rule checker; used by the tests now and by manual editing later.
@@ -90,11 +91,13 @@ pub struct Options {
     pub max_depth: usize,
     /// How long to spend improving quality once every lesson is placed (zero = skip).
     pub improve_time: Duration,
+    /// When sessions are still left over, shake the timetable around them and try again.
+    pub repair: bool,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Options { time_limit: Duration::from_secs(120), seed: 1, max_depth: 8, improve_time: Duration::ZERO }
+        Options { time_limit: Duration::from_secs(120), seed: 1, max_depth: 8, improve_time: Duration::ZERO, repair: true }
     }
 }
 
@@ -145,7 +148,7 @@ pub fn solve(
     let mut attempt = 0u64;
     loop {
         let stagnation = (opts.time_limit / 30).clamp(Duration::from_millis(500), Duration::from_secs(4));
-        let cfg = Config { max_depth: opts.max_depth, stagnation, deadline, seed: opts.seed.wrapping_add(attempt * 7919) };
+        let cfg = Config { max_depth: opts.max_depth, stagnation, deadline, seed: opts.seed.wrapping_add(attempt * 7919), limit: None, node_budget: None };
         let mut eng = Engine::new(&m, &cfg);
         if setup.settings.allow_relaxation {
             eng.s.rules = Rules::RELAXED;
@@ -178,7 +181,7 @@ pub fn solve(
             .collect();
         if !queue.is_empty() && Instant::now() < deadline {
             let stagnation = (opts.time_limit / 30).clamp(Duration::from_millis(500), Duration::from_secs(4));
-            let cfg = Config { max_depth: opts.max_depth, stagnation, deadline, seed: opts.seed.wrapping_add(99_991) };
+            let cfg = Config { max_depth: opts.max_depth, stagnation, deadline, seed: opts.seed.wrapping_add(99_991), limit: None, node_budget: None };
             let mut eng = Engine::new(&m, &cfg);
             eng.s.rules = Rules::RELAXED;
             for (v, p) in best_place.iter().enumerate() {
@@ -198,9 +201,20 @@ pub fn solve(
         }
     }
 
+    // Repair: when a few sessions are still left over, shake the timetable around them and try again.
+    let mut best_place = best_place;
+    let leftover = |places: &[Option<Pl>]| (0..m.cards.len()).filter(|&v| places[v].is_none() && m.cards[v].broken.is_none() && !m.cards[v].domain.is_empty() && !problems.iter().any(|(p, _)| *p == v)).count();
+    if opts.repair && !cancelled && leftover(&best_place) > 0 && Instant::now() < deadline {
+        let rules = if setup.settings.allow_relaxation { Rules::RELAXED } else { Rules::STRICT };
+        let floor = sessions_of(&best_place);
+        let report = &mut |n: usize| progress(Progress { phase: Phase::Placing, placed: n.max(floor), total: total_sessions, fraction: 0.0 });
+        let (fixed, stopped) = repair::repair(&m, best_place, &best_locked, rules, opts.max_depth, opts.seed, deadline, cancel, t0.elapsed(), &mut |places| report(sessions_of(places)));
+        best_place = fixed;
+        cancelled = cancelled || stopped;
+    }
+
     // Improve quality while every hard rule stays satisfied.
     let w = &setup.settings.weights;
-    let mut best_place = best_place;
     let mut fin = state_from_places(&m, &best_place, &best_locked);
     let quality_before = soft::quality_of(&soft::measure(&fin), w);
     let placed_now = sessions_of(&best_place);
@@ -385,8 +399,21 @@ pub(super) fn emit(m: &Model, v: usize, p: &Pl, locked: bool) -> Vec<PlacedCard>
 
 /// The card that holds a given lesson session.
 pub(super) fn card_of(m: &Model, lesson_id: &str, number: u32) -> Option<usize> {
-    let li = m.lesson_ids.iter().position(|x| x == lesson_id)?;
+    let li = *m.lesson_index.get(lesson_id)?;
     m.cards_of_lesson[li].get(number.wrapping_sub(1) as usize).copied()
+}
+
+/// Placed sessions grouped by the solver card they belong to (one pass over the timetable).
+/// Entry `v` lists, in timetable order, every placed session of card `v` (more than one when
+/// lessons are linked to happen at the same time).
+pub(super) fn group_by_card<'a>(m: &Model, cards: &'a [PlacedCard]) -> Vec<Vec<&'a PlacedCard>> {
+    let mut out: Vec<Vec<&PlacedCard>> = vec![Vec::new(); m.cards.len()];
+    for c in cards {
+        if let Some(v) = card_of(m, &c.lesson_id, c.number) {
+            out[v].push(c);
+        }
+    }
+    out
 }
 
 /// The current timetable as solver state, leaving out the cards in `skip`.
@@ -395,21 +422,27 @@ pub(super) fn state_from<'a>(m: &'a Model, tt: &Timetable, skip: &[usize]) -> St
     let mut st = State::new(m);
     // A timetable built with relaxation may break bendable rules; it must still load completely.
     st.rules = Rules::RELAXED;
-    let mut seen: Vec<usize> = Vec::new();
+    let groups = group_by_card(m, &tt.cards);
+    let mut done = vec![false; m.cards.len()];
+    for &v in skip {
+        if let Some(d) = done.get_mut(v) {
+            *d = true;
+        }
+    }
     for pc in &tt.cards {
         let Some(v) = card_of(m, &pc.lesson_id, pc.number) else { continue };
-        if skip.contains(&v) || seen.contains(&v) || m.cards[v].broken.is_some() {
+        if done[v] || m.cards[v].broken.is_some() {
             continue;
         }
-        seen.push(v);
-        let mine: Vec<&PlacedCard> = tt.cards.iter().filter(|c| card_of(m, &c.lesson_id, c.number) == Some(v)).collect();
+        done[v] = true;
+        let mine = &groups[v];
         let p = (pc.period as usize).wrapping_sub(1);
         let Some(s) = m.cards[v].domain.iter().copied().find(|s| s.day == pc.day && s.period as usize == p) else { continue };
         let (bl, assigned) = st.conflicts(v, s);
         if !bl.is_empty() {
             continue;
         }
-        let given = rooms_of(m, v, &mine);
+        let given = rooms_of(m, v, mine);
         let mut pl = Pl::new(s.day, s.period);
         for k in 0..MAXR {
             let g = given[k];
@@ -426,14 +459,15 @@ pub(super) fn state_from<'a>(m: &'a Model, tt: &Timetable, skip: &[usize]) -> St
 /// Locked cards go in first, at depth 0. Returns the ones that cannot stay where they are.
 fn place_locked(eng: &mut Engine, m: &Model, locked: &[PlacedCard]) -> Vec<(usize, String)> {
     let mut problems = Vec::new();
-    let mut done: Vec<usize> = Vec::new();
+    let groups = group_by_card(m, locked);
+    let mut done = vec![false; m.cards.len()];
     for lc in locked {
         let Some(v) = card_of(m, &lc.lesson_id, lc.number) else { continue };
-        if done.contains(&v) {
+        if done[v] {
             continue;
         }
-        done.push(v);
-        let mine: Vec<&PlacedCard> = locked.iter().filter(|c| card_of(m, &c.lesson_id, c.number) == Some(v)).collect();
+        done[v] = true;
+        let mine: &Vec<&PlacedCard> = &groups[v];
         let p = (lc.period as usize).wrapping_sub(1);
         let title = m.card_title(v);
         let Some(st) = m.cards[v].domain.iter().copied().find(|s| s.day == lc.day && s.period as usize == p) else {
@@ -442,7 +476,7 @@ fn place_locked(eng: &mut Engine, m: &Model, locked: &[PlacedCard]) -> Vec<(usiz
         };
         let (bl, assigned) = eng.s.conflicts(v, st);
         if bl.is_empty() && eng.s.limit_problem(v, st).is_none() {
-            let given = rooms_of(m, v, &mine);
+            let given = rooms_of(m, v, mine);
             let mut pl = Pl::new(st.day, st.period);
             for k in 0..MAXR {
                 let g = given[k];
@@ -543,4 +577,13 @@ fn describe_relaxed(m: &Model, places: &[Option<Pl>], locked: &[bool]) -> Vec<Re
         }
     }
     out
+}
+
+/// Benchmark helper (stress tests only): how long compiling the setup takes, and how big it is.
+#[cfg(any(test, feature = "uitest"))]
+pub fn bench_compile(setup: &SchoolSetup) -> (f64, usize, usize) {
+    let t = Instant::now();
+    let m = compile(setup);
+    let secs = t.elapsed().as_secs_f64();
+    (secs, m.cards.len(), m.cards.iter().map(|c| c.domain.len()).sum())
 }

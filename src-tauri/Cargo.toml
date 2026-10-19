@@ -1,6 +1,6 @@
 [package]
 name = "timewizer"
-version = "0.1.2"
+version = "0.1.3"
 description = "Timewizer"
 edition = "2021"
 # `tauri dev` / `cargo run` must start the app even though a second binary (uibridge, for UI tests) exists.
@@ -32,4 +32,10 @@ uitest = []
 [[bin]]
 name = "uibridge"
 path = "src/bin/uibridge.rs"
+required-features = ["uitest"]
+
+# Stress test: builds a large school and measures the generator and the editing commands.
+[[bin]]
+name = "stress"
+path = "src/bin/stress.rs"
 required-features = ["uitest"]

@@ -11,6 +11,8 @@ mod master;
 mod model;
 mod settings;
 mod solver;
+#[cfg(any(test, feature = "uitest"))]
+pub mod stress;
 
 use model::{Issue, SchoolSetup};
 use std::path::PathBuf;
@@ -41,7 +43,10 @@ fn with_ext(path: String) -> PathBuf {
     p
 }
 
-#[tauri::command]
+// Commands that do real work (or carry the whole school across) are marked `async`: Tauri then runs
+// them on a worker thread. A plain command runs on the thread that draws the window, so on a large
+// school it froze the screen (and a drag in progress) for as long as it took.
+#[tauri::command(async)]
 fn create_school(path: String, name: String, cur: State<Current>, ok: State<Approved>) -> Result<Opened, String> {
     let p = with_ext(ok.check(&path)?.to_string_lossy().into());
     if p.exists() {
@@ -53,7 +58,7 @@ fn create_school(path: String, name: String, cur: State<Current>, ok: State<Appr
     Ok(Opened { path: p.to_string_lossy().into(), setup })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn open_school(path: String, cur: State<Current>, ok: State<Approved>) -> Result<Opened, String> {
     let p = ok.check(&path)?;
     let setup = db::load(&p)?;
@@ -61,14 +66,14 @@ fn open_school(path: String, cur: State<Current>, ok: State<Approved>) -> Result
     Ok(Opened { path: p.to_string_lossy().into(), setup })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn save_school(setup: SchoolSetup, cur: State<Current>) -> Result<(), String> {
     let p = cur.0.lock().unwrap().clone().ok_or("No school is open.")?;
     db::save(&p, &setup)
 }
 
 /// Writes a copy to a new file and makes that file the current one.
-#[tauri::command]
+#[tauri::command(async)]
 fn save_school_as(path: String, setup: SchoolSetup, cur: State<Current>, ok: State<Approved>) -> Result<String, String> {
     let p = with_ext(ok.check(&path)?.to_string_lossy().into());
     if p.exists() {
@@ -84,17 +89,17 @@ fn close_school(cur: State<Current>) {
     *cur.0.lock().unwrap() = None;
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn validate_setup(setup: SchoolSetup) -> Vec<Issue> {
     setup.validate()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn lesson_loads(setup: SchoolSetup) -> lessons::LoadSummary {
     lessons::summarize(&setup)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn check_setup(setup: SchoolSetup) -> check::CheckReport {
     check::run(&setup)
 }
@@ -108,48 +113,48 @@ impl jobs::Sink for TauriSink {
 }
 
 /// Starts building the timetable in the background (see `jobs`).
-#[tauri::command]
+#[tauri::command(async)]
 fn start_generate(setup: SchoolSetup, app: AppHandle, jobs: State<jobs::Jobs>) -> Result<(), String> {
     jobs.start_generate(setup, Arc::new(TauriSink(app)))
 }
 
 /// Improves the quality of the current timetable in the background (see `jobs`).
-#[tauri::command]
+#[tauri::command(async)]
 fn start_improve(setup: SchoolSetup, app: AppHandle, jobs: State<jobs::Jobs>) -> Result<(), String> {
     jobs.start_improve(setup, Arc::new(TauriSink(app)))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn slot_options(setup: SchoolSetup, lesson_id: String, number: u32) -> Result<Vec<solver::edit::SlotInfo>, String> {
     solver::edit::slot_options(&setup, &lesson_id, number)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn move_card(setup: SchoolSetup, lesson_id: String, number: u32, day: u8, period: u8, room: Option<String>) -> Result<solver::Timetable, String> {
     solver::edit::move_card(&setup, &lesson_id, number, day, period, room)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn swap_options(setup: SchoolSetup, lesson_id: String, number: u32) -> Result<Vec<solver::edit::SwapInfo>, String> {
     solver::edit::swap_options(&setup, &lesson_id, number)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn swap_cards(setup: SchoolSetup, lesson_id: String, number: u32, with_lesson: String, with_number: u32) -> Result<solver::Timetable, String> {
     solver::edit::swap_cards(&setup, &lesson_id, number, &with_lesson, with_number)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn timetable_consistent(setup: SchoolSetup) -> bool {
     solver::edit::is_consistent(&setup)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn plan_copy_lessons(setup: SchoolSetup, source: String, targets: Vec<String>, copy_teachers: bool) -> Result<copy::CopyPlan, String> {
     copy::plan(&setup, &source, &targets, copy_teachers)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn export_csv(setup: SchoolSetup, path: String, ok: State<Approved>) -> Result<(), String> {
     let path = ok.check(&path)?;
     if setup.timetable.as_ref().map_or(true, |t| t.cards.is_empty()) {
@@ -158,13 +163,13 @@ fn export_csv(setup: SchoolSetup, path: String, ok: State<Approved>) -> Result<(
     std::fs::write(&path, export::csv_text(&setup)?).map_err(|e| format!("Could not save the file: {e}"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn export_excel(setup: SchoolSetup, path: String, ok: State<Approved>) -> Result<(), String> {
     export::write_excel(&setup, &ok.check(&path)?)
 }
 
 /// Saves a file the front end made (PDF, PNG). The bytes arrive as base64 text.
-#[tauri::command]
+#[tauri::command(async)]
 fn write_file(path: String, data_base64: String, ok: State<Approved>) -> Result<(), String> {
     use base64::Engine;
     let path = ok.check(&path)?;
@@ -173,7 +178,7 @@ fn write_file(path: String, data_base64: String, ok: State<Approved>) -> Result<
 }
 
 /// Reads a file (a logo picture) and returns it as base64 text.
-#[tauri::command]
+#[tauri::command(async)]
 fn read_file_base64(path: String, ok: State<Approved>) -> Result<String, String> {
     use base64::Engine;
     let path = ok.check(&path)?;
@@ -190,13 +195,13 @@ fn cancel_generate(jobs: State<jobs::Jobs>) {
 }
 
 /// Reads an Excel/CSV file and adds its rows to the setup (nothing is saved yet).
-#[tauri::command]
+#[tauri::command(async)]
 fn import_file(path: String, kind: Option<String>, setup: SchoolSetup, ok: State<Approved>) -> Result<importer::ImportReport, String> {
     let tables = importer::read_file(&ok.check(&path)?, kind.as_deref())?;
     Ok(importer::apply(setup, tables))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn write_template(path: String, kind: Option<String>, ok: State<Approved>) -> Result<(), String> {
     let path = ok.check(&path)?;
     match kind {

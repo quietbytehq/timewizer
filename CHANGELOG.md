@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.3
+
+Large schools
+- Dragging, moving, swapping and "Improve quality" on a school with thousands of sessions took 20-40 seconds; they now take a fraction of a second.
+- The Master view opens, zooms and scrolls about ten times faster, and the program no longer freezes while a command runs.
+- If some sessions are left over after building, a repair step now tries again to place them (it only runs when something is left, and can be cancelled).
+
+Packaging
+- The snap now has its own icon (snap/gui/timewizer.png), and the AppStream file names the application icon.
+
+Fixes
+- A class could get two sessions of one subject on a day for a group that should have had only one, when another group of the same class had extra sessions of that subject.
+
 ## 0.1.2
 
 - Snap and Flatpak packaging.

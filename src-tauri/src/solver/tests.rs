@@ -1454,3 +1454,265 @@ fn improve_returns_the_best_timetable_it_saw_even_when_time_runs_out_mid_search(
         assert!((real - res.best_energy).abs() < 1e-6, "seed {seed}: returned a timetable worth {real}, but the best seen was {}", res.best_energy);
     }
 }
+
+// ---------- fast lookups (a large school made these quadratic) ----------
+
+#[test]
+fn a_session_is_found_by_lesson_id_and_number_exactly() {
+    let s = sample();
+    let m = compile(&s);
+    for (li, l) in s.lessons.iter().enumerate() {
+        for n in 1..=l.cards_per_week {
+            assert_eq!(card_of(&m, &l.id, n), Some(m.cards_of_lesson[li][n as usize - 1]), "{} #{n}", l.id);
+        }
+        assert_eq!(card_of(&m, &l.id, 0), None);
+        assert_eq!(card_of(&m, &l.id, l.cards_per_week + 1), None);
+    }
+    assert_eq!(card_of(&m, "no-such-lesson", 1), None);
+}
+
+#[test]
+fn grouping_sessions_by_card_matches_looking_at_each_one() {
+    let mut s = sample();
+    s.timetable = Some(must_solve(&s).timetable);
+    let tt = s.timetable.clone().unwrap();
+    let m = compile(&s);
+    let groups = group_by_card(&m, &tt.cards);
+    assert_eq!(groups.len(), m.cards.len());
+    for (v, g) in groups.iter().enumerate() {
+        let slow: Vec<&PlacedCard> = tt.cards.iter().filter(|c| card_of(&m, &c.lesson_id, c.number) == Some(v)).collect();
+        assert_eq!(g.len(), slow.len());
+        assert!(g.iter().zip(&slow).all(|(a, b)| std::ptr::eq(*a, *b)), "card {v}: same sessions, same order");
+    }
+    assert_eq!(groups.iter().map(|g| g.len()).sum::<usize>(), tt.cards.len());
+}
+
+#[test]
+fn linked_lessons_share_one_swap_answer() {
+    // two linked lessons occupy one card; asking what the dragged lesson may swap with answers for both
+    let s = sample();
+    let mut s = s;
+    let r = must_solve(&s);
+    s.timetable = Some(r.timetable.clone());
+    let any = r.timetable.cards.iter().find(|c| !c.locked).unwrap();
+    let list = edit::swap_options(&s, &any.lesson_id, any.number).unwrap();
+    // every other placed session of the shift is answered exactly once
+    let in_shift = r.timetable.cards.iter().filter(|c| c.shift == any.shift && !(c.lesson_id == any.lesson_id && c.number == any.number)).count();
+    assert_eq!(list.len(), in_shift);
+}
+
+// ---------- repair ----------
+
+fn placements(s: &SchoolSetup, tt: &Timetable) -> (Model, Vec<Option<Pl>>) {
+    let m = compile(s);
+    let places = state_from(&m, tt, &[]).place.clone();
+    (m, places)
+}
+
+fn timetable_of(m: &Model, places: &[Option<Pl>], locked: &[bool]) -> Timetable {
+    let mut cards = Vec::new();
+    for v in 0..m.cards.len() {
+        if let Some(p) = places[v] {
+            cards.extend(emit(m, v, &p, locked[v]));
+        }
+    }
+    Timetable { cards }
+}
+
+fn repair_now(m: &Model, places: Vec<Option<Pl>>, locked: &[bool], cancel: &AtomicBool) -> (Vec<Option<Pl>>, bool) {
+    repair::repair(m, places, locked, Rules::STRICT, 8, 1, Instant::now() + Duration::from_secs(60), cancel, Duration::from_secs(1), &mut |_| {})
+}
+
+#[test]
+fn repair_puts_back_sessions_taken_off_a_finished_timetable() {
+    let s = sample();
+    let (m, mut places) = placements(&s, &must_solve(&s).timetable);
+    let locked = vec![false; m.cards.len()];
+    let removed: Vec<usize> = (0..m.cards.len()).step_by(7).collect();
+    assert!(removed.len() >= 8);
+    for &v in &removed {
+        places[v] = None;
+    }
+    let (fixed, cancelled) = repair_now(&m, places, &locked, &AtomicBool::new(false));
+    assert!(!cancelled);
+    assert!(fixed.iter().all(|p| p.is_some()), "every session is placed again");
+    let bad = verify::check(&s, &timetable_of(&m, &fixed, &locked));
+    assert!(bad.is_empty(), "{bad:#?}");
+}
+
+#[test]
+fn repair_never_moves_a_locked_session() {
+    let s = sample();
+    let (m, mut places) = placements(&s, &must_solve(&s).timetable);
+    let mut locked = vec![false; m.cards.len()];
+    for v in (0..m.cards.len()).step_by(3) {
+        locked[v] = true;
+    }
+    let before = places.clone();
+    for v in (1..m.cards.len()).step_by(5).filter(|&v| !locked[v]) {
+        places[v] = None;
+    }
+    let (fixed, _) = repair_now(&m, places, &locked, &AtomicBool::new(false));
+    for v in 0..m.cards.len() {
+        if locked[v] {
+            assert_eq!(fixed[v], before[v], "locked card {v} must stay exactly where it was");
+        }
+    }
+    assert!(verify::check(&s, &timetable_of(&m, &fixed, &locked)).is_empty());
+}
+
+#[test]
+fn repair_stops_at_once_when_cancelled_and_changes_nothing() {
+    let s = sample();
+    let (m, mut places) = placements(&s, &must_solve(&s).timetable);
+    places[0] = None;
+    let before = places.clone();
+    let (after, cancelled) = repair_now(&m, places, &vec![false; m.cards.len()], &AtomicBool::new(true));
+    assert!(cancelled);
+    assert_eq!(after, before);
+}
+
+#[test]
+fn repair_does_nothing_to_a_complete_timetable() {
+    let s = sample();
+    let (m, places) = placements(&s, &must_solve(&s).timetable);
+    let (after, cancelled) = repair_now(&m, places.clone(), &vec![false; m.cards.len()], &AtomicBool::new(false));
+    assert!(!cancelled);
+    assert_eq!(after, places);
+}
+
+#[test]
+fn repair_effort_grows_with_the_school_but_has_a_ceiling() {
+    let small = repair::limits(40, Duration::from_millis(100));
+    let big = repair::limits(3200, Duration::from_secs(10));
+    let huge = repair::limits(100_000, Duration::from_secs(600));
+    assert!(small.0 < big.0 && big.0 <= huge.0);
+    assert!(small.1 < big.1 && huge.1 <= Duration::from_secs(45));
+    assert!(small.1 >= Duration::from_millis(1500));
+}
+
+#[test]
+fn switching_repair_off_is_respected() {
+    // an impossible weekly maximum leaves a session over; repair or not, the report is the same plain explanation
+    let mut s = school(8, 5);
+    s.master.classes.extend(["a", "b", "c"].map(class));
+    s.master.teachers.push(teacher("t"));
+    s.settings.default_max_per_week = Some(8);
+    for c in ["a", "b", "c"] {
+        s.lessons.push(lesson(&format!("l{c}"), &["t"], &[c], 1, 3));
+    }
+    give_own_subjects(&mut s);
+    for repair in [false, true] {
+        let r = run_with(&s, &[], Options { repair, time_limit: Duration::from_secs(10), ..Options::default() });
+        assert_eq!((r.placed, r.unplaced.len()), (8, 1), "repair={repair}");
+        assert!(verify::check(&s, &r.timetable).is_empty());
+    }
+}
+
+// ---------- the large school (slow: run with `cargo test --release -- --ignored`) ----------
+
+#[test]
+#[ignore = "slow: cargo test --release -- --ignored"]
+fn large_school_repair_places_at_least_as_much_and_keeps_every_rule() {
+    use crate::stress::large_school;
+    for seed in [3, 7] {
+        let s = large_school(seed);
+        let plain = run_with(&s, &[], Options { repair: false, ..Options::default() });
+        let fixed = run_with(&s, &[], Options { repair: true, ..Options::default() });
+        assert!(fixed.placed >= plain.placed, "seed {seed}: repair placed {} < plain {}", fixed.placed, plain.placed);
+        for r in [&plain, &fixed] {
+            assert!(r.placed as f64 / r.total as f64 > 0.99, "seed {seed}: only {}/{}", r.placed, r.total);
+            let bad = verify::check(&s, &r.timetable);
+            assert!(bad.is_empty(), "seed {seed}: {:#?}", bad.iter().take(5).collect::<Vec<_>>());
+        }
+    }
+}
+
+#[test]
+#[ignore = "slow: cargo test --release -- --ignored"]
+fn editing_the_large_school_by_hand_stays_quick() {
+    // Before the fix each of these took 20-40 seconds on this school.
+    use crate::stress::large_school;
+    let mut s = large_school(8);
+    let r = run_with(&s, &[], Options { repair: false, ..Options::default() });
+    s.timetable = Some(r.timetable.clone());
+    let placed: Vec<_> = r.timetable.cards.iter().filter(|c| !c.locked).collect();
+    let slow = |what: &str, t: Instant, limit_ms: u128| {
+        let took = t.elapsed().as_millis();
+        assert!(took < limit_ms, "{what} took {took} ms (limit {limit_ms})");
+    };
+    for c in placed.iter().step_by(placed.len() / 6) {
+        let t = Instant::now();
+        let slots = edit::slot_options(&s, &c.lesson_id, c.number).unwrap();
+        slow("slot_options", t, 1500);
+        let t = Instant::now();
+        let swaps = edit::swap_options(&s, &c.lesson_id, c.number).unwrap();
+        slow("swap_options", t, 1500);
+        if let Some(g) = slots.iter().find(|x| x.status == "ok" && !(x.day == c.day && x.period == c.period)) {
+            let t = Instant::now();
+            let tt = edit::move_card(&s, &c.lesson_id, c.number, g.day, g.period, None).unwrap();
+            slow("move_card", t, 1500);
+            assert_eq!(tt.cards.len(), r.timetable.cards.len());
+        }
+        if let Some(w) = swaps.iter().find(|x| x.ok) {
+            let t = Instant::now();
+            let tt = edit::swap_cards(&s, &c.lesson_id, c.number, &w.lesson_id, w.number).unwrap();
+            slow("swap_cards", t, 1500);
+            assert_eq!(tt.cards.len(), r.timetable.cards.len());
+        }
+    }
+    let t = Instant::now();
+    assert!(edit::is_consistent(&s));
+    slow("is_consistent", t, 1500);
+    let t = Instant::now();
+    let rep = improve_timetable(&s, Duration::from_secs(2), 7, &AtomicBool::new(false), &mut |_| {});
+    // asking for 2 seconds of improving costs about 2 seconds (setting up used to take 20)
+    assert!(t.elapsed() < Duration::from_secs(5), "improve took {:?}", t.elapsed());
+    assert!(rep.quality_after.penalty <= rep.quality_before.penalty);
+    assert!(verify::check(&s, &rep.timetable).is_empty());
+}
+
+// ---------- "same subject on the same day" belongs to each group of students ----------
+
+#[test]
+fn the_same_subject_limit_is_worked_out_for_each_group_of_students() {
+    // Whole-class English five times a week from a teacher who works only 3 days (so sessions must share
+    // days), plus a reading lesson twice a week for Group 2 only.
+    //   Group 1 has 5 English sessions over 3 days  -> at most 2 a day
+    //   Group 2 has 7 English sessions over 3 days  -> at most 3 a day
+    // The solver used to apply the larger limit (3) to the whole class, so Group 1 could get 3 in a day
+    // and the independent checker rightly objected.
+    let mut s = school(7, 5);
+    let mut c = class("a");
+    c.divisions = vec![Division { id: "d".into(), name: "Halves".into(), groups: vec![grp("g1"), grp("g2")] }];
+    s.master.classes.push(c);
+    let mut part_time = teacher("t");
+    part_time.max_days_per_week = Some(3);
+    s.master.teachers.extend([part_time, teacher("u")]);
+    s.lessons.push(lesson("whole", &["t"], &["a"], 1, 5));
+    let mut reading = lesson("reading", &["u"], &["a"], 1, 2);
+    reading.parts[0].group_id = Some("g2".into());
+    s.lessons.push(reading);
+
+    let m = compile(&s);
+    let whole: Vec<usize> = m.cards_of_lesson[0].clone();
+    let read: Vec<usize> = m.cards_of_lesson[1].clone();
+    let mut st = State::new(&m);
+    st.place(whole[0], Pl::new(0, 0));
+    st.place(whole[1], Pl::new(0, 1));
+    let at = |period| model::Start { day: 0, period, avoid: 0 };
+
+    // a third whole-class session that day would give Group 1 three: refused, and the reason names the subject
+    let (blocked, _) = st.conflicts(whole[2], at(2));
+    assert!(blocked.iter().any(|(_, b)| matches!(b, Blocker::SameSubject(..))), "{blocked:?}");
+    // but a reading session for Group 2 only makes three for Group 2, whose limit is 3: allowed
+    let (free, _) = st.conflicts(read[0], at(2));
+    assert!(free.is_empty(), "{free:?}");
+    // and the real search never breaks it, for many seeds
+    for seed in 1..=8 {
+        let r = run_with(&s, &[], Options { seed, ..Options::default() });
+        assert_eq!(r.placed, r.total, "seed {seed}");
+        let bad = verify::check(&s, &r.timetable);
+        assert!(bad.is_empty(), "seed {seed}: {bad:?}");
+    }
+}

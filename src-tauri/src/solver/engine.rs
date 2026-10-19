@@ -244,11 +244,21 @@ impl<'a> State<'a> {
         self.journal.clear();
     }
 
-    /// Does card `o` have a member of this class/subject whose group overlaps `mask`?
-    fn overlaps_subject(&self, o: u32, class: usize, subject: usize, mask: u64) -> bool {
-        self.m.cards[o as usize].members.iter().any(|mb| {
-            mb.subject == Some(subject) && mb.classes.iter().any(|&(c, mk)| c == class && mk & mask != 0)
-        })
+    /// The students of `class` that card `o` teaches this subject to (0 = none of them).
+    fn subject_mask(&self, o: u32, class: usize, subject: usize) -> u64 {
+        self.m.cards[o as usize].members.iter().filter(|mb| mb.subject == Some(subject)).flat_map(|mb| mb.classes.iter()).filter(|&&(c, _)| c == class).fold(0, |acc, &(_, mk)| acc | mk)
+    }
+
+    /// Sessions of (class, subject) on a day that share students with `mask`, with the students each one has.
+    fn same_subject(&self, v: usize, class: usize, subject: usize, day: usize, mask: u64) -> Vec<(u32, u64)> {
+        let key = (class * self.m.nsub + subject) * self.m.nd + day;
+        self.cs_day[key]
+            .iter()
+            .copied()
+            .filter(|&o| o as usize != v)
+            .map(|o| (o, self.subject_mask(o, class, subject)))
+            .filter(|x| x.1 & mask != 0)
+            .collect()
     }
 
     /// A room for each pool, all different. Prefers rooms that are free; otherwise the ones with
@@ -359,15 +369,20 @@ impl<'a> State<'a> {
             for mb in &c.members {
                 let Some(sub) = mb.subject else { continue };
                 for &(ci, mask) in &mb.classes {
-                    let key = (ci * m.nsub + sub) * m.nd + st.day as usize;
-                    let same: Vec<u32> = self.cs_day[key]
-                        .iter()
-                        .copied()
-                        .filter(|&o| o as usize != v && self.overlaps_subject(o, ci, sub, mask))
-                        .collect();
-                    if same.len() as u32 + 1 > m.subj_limit[ci * m.nsub + sub] {
-                        for o in same {
-                            add(&mut out, o, Blocker::SameSubject(ci, sub));
+                    let others = self.same_subject(v, ci, sub, st.day as usize, mask);
+                    if others.is_empty() {
+                        continue;
+                    }
+                    // The limit belongs to each group of students: every one of them may have only so many that day.
+                    let mut bits = mask;
+                    while bits != 0 {
+                        let b = bits.trailing_zeros() as usize;
+                        bits &= bits - 1;
+                        let on: Vec<u32> = others.iter().filter(|(_, mk)| mk >> b & 1 == 1).map(|(o, _)| *o).collect();
+                        if on.len() as u32 + 1 > m.subj_limit[(ci * m.nsub + sub) * 64 + b] {
+                            for o in on {
+                                add(&mut out, o, Blocker::SameSubject(ci, sub));
+                            }
                         }
                     }
                 }
@@ -394,11 +409,16 @@ impl<'a> State<'a> {
         for mb in &c.members {
             let Some(sub) = mb.subject else { continue };
             for &(ci, mask) in &mb.classes {
-                let key = (ci * m.nsub + sub) * m.nd + st.day as usize;
-                let n = self.cs_day[key].iter().filter(|&&o| o as usize != v && self.overlaps_subject(o, ci, sub, mask)).count() as u32 + 1;
-                let limit = m.subj_limit[ci * m.nsub + sub];
-                if n > limit {
-                    out.push(Violation::Subject(ci, sub, n, limit));
+                let others = self.same_subject(v, ci, sub, st.day as usize, mask);
+                let mut bits = mask;
+                while bits != 0 {
+                    let b = bits.trailing_zeros() as usize;
+                    bits &= bits - 1;
+                    let n = others.iter().filter(|(_, mk)| mk >> b & 1 == 1).count() as u32 + 1;
+                    let limit = m.subj_limit[(ci * m.nsub + sub) * 64 + b];
+                    if n > limit {
+                        out.push(Violation::Subject(ci, sub, n, limit));
+                    }
                 }
             }
         }
@@ -519,6 +539,10 @@ pub struct Config {
     pub stagnation: Duration,
     pub deadline: Instant,
     pub seed: u64,
+    /// Cap on search steps (and half of it as patience). `None` = scaled to the number of cards.
+    pub limit: Option<u64>,
+    /// Search nodes one ejection chain may use. `None` = the usual 200.
+    pub node_budget: Option<i64>,
 }
 
 pub struct Engine<'a> {
@@ -616,7 +640,7 @@ impl<'a> Engine<'a> {
 
     /// Last resort: put `v` where the fewest cards are in its way and push those back
     /// into the queue. Returns the evicted cards, or None if no start can ever work.
-    fn kick(&mut self, v: usize) -> Option<Vec<usize>> {
+    pub(super) fn kick(&mut self, v: usize) -> Option<Vec<usize>> {
         let m = self.s.m;
         let mut cands: Vec<(f64, Start, Vec<u32>)> = Vec::new();
         for &st in &m.cards[v].domain {
@@ -667,8 +691,8 @@ impl<'a> Engine<'a> {
         let mut fresh = queue;
         fresh.sort_by(|&a, &b| m.cards[a].difficulty.partial_cmp(&m.cards[b].difficulty).unwrap());
         let mut retry: Vec<usize> = Vec::new();
-        let max_iter = 400 * total_cards as u64 + 2000;
-        let patience = 6 * total_cards as u64 + 300;
+        let max_iter = cfg.limit.unwrap_or(400 * total_cards as u64 + 2000);
+        let patience = cfg.limit.map_or(6 * total_cards as u64 + 300, |l| l / 2 + 10);
         let mut since_best = 0u64;
         let mut last_gain = Instant::now();
         let (mut cancelled, mut timed_out) = (false, false);
@@ -703,7 +727,7 @@ impl<'a> Engine<'a> {
             if m.cards[v].broken.is_some() || m.cards[v].domain.is_empty() {
                 continue; // can never be placed; it will be explained at the end
             }
-            self.budget = 200;
+            self.budget = cfg.node_budget.unwrap_or(200);
             let mut chain = Vec::new();
             if self.eject(v, self.cfg_depth, &mut chain) {
                 self.s.commit();
