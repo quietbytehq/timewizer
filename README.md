@@ -3,6 +3,24 @@
 Timetables for a single school, on your own computer. Offline, one file per school, no login.
 Open source (Apache-2.0). Source code and downloads: <https://github.com/quietbytehq/timewizer> (installers are on the [Releases page](https://github.com/quietbytehq/timewizer/releases)).
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/19-timetable-teacher.png">
+    <img alt="Timewizer timetable view for a teacher" src="docs/screenshots/light/19-timetable-teacher.png" width="90%">
+  </picture>
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/16-build-done.png">
+    <img alt="The solver finishing a build" src="docs/screenshots/light/16-build-done.png" width="45%">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dark/06-rules-and-limits.png">
+    <img alt="Rules and limits" src="docs/screenshots/light/06-rules-and-limits.png" width="45%">
+  </picture>
+</p>
+
 ## Install (Windows)
 
 Download from the project's [Releases page](https://github.com/quietbytehq/timewizer/releases), then either:
