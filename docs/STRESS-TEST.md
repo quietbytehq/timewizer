@@ -45,6 +45,10 @@ Improving (typical school, quality penalty, lower is better): 19,741 -> 13,245 a
 | Undo | 1,278 ms | 64 ms |
 | Open any other page (worst: Print & export) | - | under 0.5 s |
 
+**0.2.0 check** (16-core machine, 0.1.3 rebuilt and run on the same machine for comparison): build-only
+4,504 of 4,506 in 14.4-14.6 s (0.1.3: 14.5-14.7 s); Build + improve 20 s 34.1 s (0.1.3: 34.4 s); pick up a
+lesson 13 ms, move/swap 13 ms (the same as 0.1.3).
+
 ## What was slow, and the fixes
 
 1. **Every edit rescanned the whole timetable per session** (`state_from`, `swap_options`, locking):

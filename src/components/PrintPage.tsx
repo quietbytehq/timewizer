@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { FileSpreadsheet, FileText, Image as ImageIcon, Table2 } from 'lucide-react'
+import { FileSpreadsheet, FileText, Image as ImageIcon, List, Table2 } from 'lucide-react'
 import { api, errText } from '@/lib/api'
 import type { SchoolSetup } from '@/lib/types'
 import { DEFAULT_OPTIONS, PAPERS, type Paper, type PrintOptions } from '@/lib/print/draw'
@@ -101,14 +101,21 @@ export function PrintPage({ setup, onNeedTimetable }: { setup: SchoolSetup; onNe
     }
     return `Saved ${pages.length} ${pages.length === 1 ? 'picture' : 'pictures'} in ${dir}`
   })
+  // Excel and the timetables CSV hold what is ticked above; the lesson list always has every lesson.
   const saveExcel = () => run(async () => {
-    const path = await api.pickSaveFile(`${base}-timetable.xlsx`, 'xlsx', 'Excel workbook')
+    const path = await api.pickSaveFile(`${base}-timetables.xlsx`, 'xlsx', 'Excel workbook')
     if (!path) return null
-    await api.exportExcel(setup, path)
+    await api.exportExcel(setup, path, sel)
     return `Saved the Excel workbook: ${path}`
   })
   const saveCsv = () => run(async () => {
-    const path = await api.pickSaveFile(`${base}-timetable.csv`, 'csv', 'CSV file')
+    const path = await api.pickSaveFile(`${base}-timetables.csv`, 'csv', 'CSV file')
+    if (!path) return null
+    await api.exportTimetablesCsv(setup, path, sel)
+    return `Saved the timetables as a CSV file: ${path}`
+  })
+  const saveList = () => run(async () => {
+    const path = await api.pickSaveFile(`${base}-lessons.csv`, 'csv', 'CSV file')
     if (!path) return null
     await api.exportCsv(setup, path)
     return `Saved the list of lessons: ${path}`
@@ -191,9 +198,14 @@ export function PrintPage({ setup, onNeedTimetable }: { setup: SchoolSetup; onNe
         <div className="mt-3 flex flex-wrap gap-3">
           <Button kind="primary" disabled={busy || none} onClick={savePdf}><FileText size={16} /> Save PDF…</Button>
           <Button kind="secondary" disabled={busy || none} onClick={savePng}><ImageIcon size={16} /> Save pictures (PNG)…</Button>
-          <Button kind="secondary" disabled={busy} onClick={saveExcel}><FileSpreadsheet size={16} /> Save Excel…</Button>
-          <Button kind="secondary" disabled={busy} onClick={saveCsv}><Table2 size={16} /> Save CSV…</Button>
+          <Button kind="secondary" disabled={busy || none} onClick={saveExcel}><FileSpreadsheet size={16} /> Save Excel…</Button>
+          <Button kind="secondary" disabled={busy || none} onClick={saveCsv}><Table2 size={16} /> Save CSV…</Button>
+          <Button kind="ghost" disabled={busy} onClick={saveList}><List size={16} /> Save lesson list (CSV)…</Button>
         </div>
+        <p className="mt-3 text-xs" style={{ color: 'var(--muted)' }}>
+          Excel and CSV hold the timetables chosen above, with the period times (each day's own times where they differ).
+          Excel does not need to be installed. The lesson list has one line per lesson session, for your own sorting and filtering.
+        </p>
         {status && <p role={status.ok ? 'status' : 'alert'} className="mt-4 break-all text-sm font-medium" style={{ color: status.ok ? 'var(--success)' : 'var(--danger)' }}>{status.text}</p>}
       </Card>
     </div>

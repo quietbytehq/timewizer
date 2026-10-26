@@ -59,6 +59,27 @@ pub struct UnplacedCard {
     pub fix: String,
 }
 
+/// One lesson session: the lesson and which of its sessions (1-based).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionRef {
+    pub lesson_id: String,
+    pub number: u32,
+}
+
+/// A locked lesson that stops others from being placed.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LockInTheWay {
+    /// The sessions locked together (more than one for "same time" lessons).
+    pub sessions: Vec<SessionRef>,
+    pub title: String,
+    /// "Monday period 2"
+    pub when: String,
+    /// How many unplaced lesson sessions it is in the way of.
+    pub blocks: u32,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SolveReport {
@@ -74,6 +95,9 @@ pub struct SolveReport {
     pub quality_after: soft::Quality,
     /// Rules that had to be bent to place every lesson (only when relaxation is allowed).
     pub relaxed: Vec<Relaxation>,
+    /// Locked lessons that stop other sessions from being placed, the worst first.
+    #[serde(default)]
+    pub locks_in_the_way: Vec<LockInTheWay>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -227,6 +251,16 @@ pub fn solve(
     }
     let quality_after = soft::quality_of(&soft::measure(&fin), w);
     let relaxed = if setup.settings.allow_relaxation { describe_relaxed(&m, &best_place, &best_locked) } else { Vec::new() };
+    // Locked lessons that stop others from being placed (only looked at when something is left over).
+    let locks_only = (best_locked.iter().any(|&l| l) && best_place.iter().any(|p| p.is_none())).then(|| {
+        let places: Vec<Option<Pl>> = best_place.iter().zip(&best_locked).map(|(p, &l)| if l { *p } else { None }).collect();
+        state_from_places(&m, &places, &best_locked)
+    });
+    let mut blame: Vec<(usize, u32)> = Vec::new();
+    let mut blame_on = |o: usize, sessions: u32| match blame.iter_mut().find(|b| b.0 == o) {
+        Some(b) => b.1 += sessions,
+        None => blame.push((o, sessions)),
+    };
     let out = engine::Outcome { best: best_place, cancelled, timed_out };
     let locked_flags = best_locked;
     let mut cards = Vec::new();
@@ -236,10 +270,41 @@ pub fn solve(
         match out.best[v] {
             Some(p) => cards.extend(emit(&m, v, &p, locked_flags[v])),
             None => {
-                let (message, fix) = match problems.iter().find(|(p, _)| *p == v) {
-                    Some((_, msg)) => (msg.clone(), "Unlock or move that lesson, then generate again.".to_string()),
+                let sessions = c.members.len() as u32;
+                let (mut message, mut fix) = match problems.iter().find(|(p, _)| *p == v) {
+                    Some((_, msg)) => {
+                        // the other locked lessons it clashes with are to blame
+                        if let Some(p) = m.cards[v].domain.iter().find(|s| locked.iter().any(|lc| card_of(&m, &lc.lesson_id, lc.number) == Some(v) && lc.day == s.day && lc.period as usize == s.period as usize + 1)) {
+                            for (o, _) in fin.conflicts(v, *p).0 {
+                                if fin.locked[o as usize] {
+                                    blame_on(o as usize, sessions);
+                                }
+                            }
+                        }
+                        (msg.clone(), "Unlock or move that lesson, then generate again.".to_string())
+                    }
                     None => explain(&m, &fin, v),
                 };
+                if let (Some(lo), None, false) = (&locks_only, &c.broken, c.domain.is_empty() || problems.iter().any(|(p, _)| *p == v)) {
+                    let (all, by) = locks_in_the_way(&m, &fin, lo, v);
+                    if !by.is_empty() {
+                        let shown: Vec<String> = by.iter().take(4).map(|&o| placed_title(&m, if all { lo } else { &fin }, o)).collect();
+                        let more = if by.len() > 4 { format!(", and {} more", by.len() - 4) } else { String::new() };
+                        if all {
+                            message = format!(
+                                "{} cannot be placed: the locked lessons already take every time it could use. Locked lessons in the way: {}{more}.",
+                                m.card_title(v),
+                                shown.join(", ")
+                            );
+                            fix = "Unlock some of these lessons (or press \"Unlock these\" below), then build again.".into();
+                        } else {
+                            message = format!("{message} Locked lessons in the way: {}{more}.", shown.join(", "));
+                        }
+                        for &o in &by {
+                            blame_on(o, sessions);
+                        }
+                    }
+                }
                 // One entry per lesson session, so the counts match "placed of total".
                 for mb in &c.members {
                     unplaced.push(UnplacedCard {
@@ -253,6 +318,19 @@ pub fn solve(
             }
         }
     }
+    blame.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    let locks_in_the_way = blame
+        .into_iter()
+        .filter_map(|(o, n)| {
+            let p = out.best[o]?;
+            Some(LockInTheWay {
+                sessions: m.cards[o].members.iter().map(|mb| SessionRef { lesson_id: m.lesson_ids[mb.lesson].clone(), number: mb.number }).collect(),
+                title: m.card_title(o),
+                when: format!("{} period {}", m.day_names.get(p.day as usize).map_or("", |d| d.as_str()), p.period + 1),
+                blocks: n,
+            })
+        })
+        .collect();
     let placed = sessions_of(&out.best);
     progress(Progress { phase: Phase::Placing, placed, total: total_sessions, fraction: 1.0 });
     SolveReport {
@@ -266,6 +344,7 @@ pub fn solve(
         quality_before,
         quality_after,
         relaxed,
+        locks_in_the_way,
     }
 }
 
@@ -484,12 +563,67 @@ fn place_locked(eng: &mut Engine, m: &Model, locked: &[PlacedCard]) -> Vec<(usiz
             }
             eng.s.place(v, pl);
             eng.s.locked[v] = true;
+        } else if !bl.is_empty() {
+            let mut others: Vec<usize> = Vec::new();
+            for (o, _) in &bl {
+                if !others.contains(&(*o as usize)) {
+                    others.push(*o as usize);
+                }
+            }
+            let names: Vec<String> = others.iter().map(|&o| placed_title(m, &eng.s, o)).collect();
+            problems.push((v, format!("The locked lesson {title} cannot stay where it is: it clashes with the locked lesson {}.", names.join(" and the locked lesson "))));
         } else {
-            problems.push((v, format!("The locked lesson {title} clashes with another locked lesson or a teacher limit.")));
+            let who = eng.s.limit_problem(v, st).map(|t| m.teacher_names[t].clone()).unwrap_or_else(|| "a teacher".into());
+            problems.push((v, format!("The locked lesson {title} cannot stay where it is: together with the other locked lessons, {who} would go over their limits for the day or week.")));
         }
     }
     eng.s.commit();
     problems
+}
+
+/// "Mathematics · 6A (Monday period 2)": a placed card and where it is.
+fn placed_title(m: &Model, st: &State, o: usize) -> String {
+    match st.place[o] {
+        Some(p) => format!("{} ({} period {})", m.card_title(o), m.day_names.get(p.day as usize).map_or("", |d| d.as_str()), p.period + 1),
+        None => m.card_title(o),
+    }
+}
+
+/// Which locked cards stop card `v` from being placed. `all` is true when the locked cards alone
+/// (with nothing else on the timetable) already take every time `v` could use: then the locks
+/// are the cause. Otherwise the list holds the locked cards that are the only thing in the way of
+/// some of its times in the final timetable.
+fn locks_in_the_way(m: &Model, fin: &State, locks_only: &State, v: usize) -> (bool, Vec<usize>) {
+    let mut out: Vec<usize> = Vec::new();
+    let add = |o: usize, out: &mut Vec<usize>| {
+        if !out.contains(&o) {
+            out.push(o);
+        }
+    };
+    let mut all = true;
+    for &s in &m.cards[v].domain {
+        let (bl, _) = locks_only.conflicts(v, s);
+        if bl.is_empty() && locks_only.limit_problem(v, s).is_none() {
+            all = false;
+            break;
+        }
+        for (o, _) in bl {
+            add(o as usize, &mut out);
+        }
+    }
+    if all {
+        return (true, out);
+    }
+    out.clear();
+    for &s in &m.cards[v].domain {
+        let (bl, _) = fin.conflicts(v, s);
+        if !bl.is_empty() && bl.iter().all(|(o, _)| fin.locked[*o as usize]) {
+            for (o, _) in bl {
+                add(o as usize, &mut out);
+            }
+        }
+    }
+    (false, out)
 }
 
 /// Solver state holding exactly these placements.

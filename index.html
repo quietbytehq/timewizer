@@ -4,9 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Timewizer</title>
+    <script src="/boot.js"></script>
+    <style>
+      /* Shown until the app is ready, instead of a blank window. */
+      html, body { margin: 0; background: #EFE6D8; }
+      html.dark, html.dark body { background: #0F2229; }
+      #boot { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+      #boot img { width: 112px; height: 112px; border-radius: 24px; box-shadow: 0 12px 40px rgba(15, 34, 41, 0.25); }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div id="boot" data-testid="boot"><img src="/timewizer-logo.svg" alt="Timewizer is starting" /></div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

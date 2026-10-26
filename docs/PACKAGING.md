@@ -62,7 +62,7 @@ the two `WEBKIT_` lines and the `layout` in `snapcraft.yaml` are there for that.
 
 ### Publish
 
-Pushing a tag like `v0.1.3` runs the **snap** job, which builds the snap and uploads it to the
+Pushing a tag like `v0.2.0` runs the **snap** job, which builds the snap and uploads it to the
 **stable** channel. You can also run the **Release** workflow by hand (Actions tab): it then only builds
 the snap and attaches it to the run, without publishing.
 

@@ -23,7 +23,7 @@ pub struct SlotInfo {
     pub day: u8,
     /// 1-based
     pub period: u8,
-    /// "ok" (green) | "soft" (yellow) | "blocked" (red)
+    /// "ok" (green) | "soft" (amber) | "blocked" (red)
     pub status: String,
     pub reasons: Vec<String>,
     pub rooms: Vec<RoomOption>,
@@ -114,17 +114,81 @@ fn evaluate(m: &Model, st: &State, v: usize, d: usize, p: usize) -> (String, Vec
     ("ok".into(), vec![], rooms)
 }
 
-/// Every start cell for the card, coloured by whether it can go there right now.
+/// Free periods between the first and last busy period of a day.
+fn gaps(busy: impl Fn(usize) -> bool, per: usize) -> usize {
+    let ps: Vec<usize> = (0..per).filter(|&p| busy(p)).collect();
+    match (ps.first(), ps.last()) {
+        (Some(a), Some(b)) => b - a + 1 - ps.len(),
+        _ => 0,
+    }
+}
+
+/// "Nice to have" rules (Rules & limits) that a move to (d, p) would break, beyond "avoid" cells:
+/// a new free period in the middle of a teacher's or class's day, and a session the day before
+/// or after another session of the same lesson. Only rules whose weight is above 0 count.
+fn soft_reasons(m: &Model, st: &State, v: usize, d: usize, p: usize, w: &crate::settings::Weights) -> Vec<String> {
+    let c = &m.cards[v];
+    let per = m.periods[c.shift][d];
+    let here = |q: usize| q >= p && q < p + c.len;
+    let mut out = Vec::new();
+    if w.teacher_gaps > 0 {
+        for &t in &c.teachers {
+            let busy = |q: usize| st.t_occ[t * m.slots + m.slot(c.shift, d, q)] > 0;
+            if gaps(|q| busy(q) || here(q), per) > gaps(busy, per) {
+                out.push(format!("{} would have a free period in the middle of the day.", m.teacher_names[t]));
+            }
+        }
+    }
+    if w.class_gaps > 0 {
+        for &(ci, _) in &c.classes {
+            let busy = |q: usize| st.c_mask[ci * m.slots + m.slot(c.shift, d, q)] != 0;
+            if gaps(|q| busy(q) || here(q), per) > gaps(busy, per) {
+                out.push(format!("Class {} would have a free period in the middle of the day.", m.class_names[ci]));
+            }
+        }
+    }
+    if w.spread > 0 {
+        let days = (0..m.nd).filter(|&x| m.periods[c.shift][x] > 0).count();
+        for mb in &c.members {
+            let own = &m.cards_of_lesson[mb.lesson];
+            // Only when the week has room to keep a day between sessions.
+            if own.len() * 2 > days + 1 {
+                continue;
+            }
+            let next_door = own.iter().filter(|&&o| o != v).filter_map(|&o| st.place[o]).find(|q| (q.day as usize).abs_diff(d) == 1);
+            if let Some(q) = next_door {
+                out.push(format!(
+                    "Another session of {} is on {}; spread across the week is better.",
+                    m.lesson_titles[mb.lesson],
+                    m.day_names.get(q.day as usize).map_or("the next day", |n| n.as_str())
+                ));
+                break;
+            }
+        }
+    }
+    out
+}
+
+/// Every start cell for the card, coloured by whether it can go there right now:
+/// "ok" (green), "soft" (amber: allowed, but breaks a "nice to have" rule) or "blocked" (red).
 pub fn slot_options(setup: &SchoolSetup, lesson_id: &str, number: u32) -> Result<Vec<SlotInfo>, String> {
     let m = compile(setup);
     let v = find_card(&m, lesson_id, number)?;
     let tt = setup.timetable.clone().unwrap_or_default();
     let st = state_from(&m, &tt, &[v]);
     let sh = m.cards[v].shift;
+    let w = &setup.settings.weights;
     let mut out = Vec::new();
     for d in 0..m.nd {
         for p in 0..m.periods[sh][d] {
-            let (status, reasons, rooms) = evaluate(&m, &st, v, d, p);
+            let (mut status, mut reasons, rooms) = evaluate(&m, &st, v, d, p);
+            if status != "blocked" {
+                let more = soft_reasons(&m, &st, v, d, p, w);
+                if !more.is_empty() {
+                    status = "soft".into();
+                    reasons.extend(more);
+                }
+            }
             out.push(SlotInfo { shift: m.shift_ids[sh].clone(), day: d as u8, period: p as u8 + 1, status, reasons, rooms });
         }
     }

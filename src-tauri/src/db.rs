@@ -3,7 +3,24 @@ use crate::model::*;
 use rusqlite::{params, Connection, OpenFlags};
 use std::path::Path;
 
-const SCHEMA_VERSION: &str = "1";
+/// The newest file format this version reads and writes.
+///   1: Timetable 0.1.x, and 0.2.0 files without substitutions (still written as 1, so 0.1.x can open them)
+///   2: with absences and covers (0.2.0); 0.1.x refuses these instead of losing the substitutions on save
+const SCHEMA_VERSION: u32 = 2;
+
+/// The format a school is written in: the oldest that holds everything in it.
+fn version_for(s: &SchoolSetup) -> u32 {
+    if s.substitutions.has_records() { 2 } else { 1 }
+}
+
+/// Brings a school read from an older file up to date. Version 1 has no substitution rows, so
+/// they start empty (already the case after reading); nothing else changed between 1 and 2.
+fn migrate(from: u32, s: &mut SchoolSetup) {
+    if from < 2 {
+        s.substitutions.absences.clear();
+        s.substitutions.covers.clear();
+    }
+}
 
 fn init(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
@@ -35,8 +52,9 @@ fn write(conn: &mut Connection, s: &SchoolSetup) -> rusqlite::Result<()> {
     for t in ["meta", "days", "shifts", "shift_periods", "shift_breaks", "entities"] {
         tx.execute(&format!("DELETE FROM {t}"), [])?;
     }
+    let version = version_for(s).to_string();
     for (k, v) in [
-        ("schema_version", SCHEMA_VERSION),
+        ("schema_version", version.as_str()),
         ("name", &s.name),
         ("school_type", &s.school_type),
         ("academic_year", &s.academic_year),
@@ -75,6 +93,17 @@ fn write(conn: &mut Connection, s: &SchoolSetup) -> rusqlite::Result<()> {
     put_all(&tx, "lesson", s.lessons.iter().map(|x| (&x.id, serde_json::to_string(x))))?;
     put_all(&tx, "link", s.links.iter().map(|x| (&x.id, serde_json::to_string(x))))?;
     tx.execute("INSERT INTO entities VALUES ('settings', 0, 'settings', ?1)", params![serde_json::to_string(&s.settings).unwrap_or_default()])?;
+    let sub = &s.substitutions;
+    put_all(&tx, "absence", sub.absences.iter().map(|x| (&x.id, serde_json::to_string(x))))?;
+    // A cover is known by its session, date and absence; a repeated one replaces the earlier copy.
+    for (ord, c) in sub.covers.iter().enumerate() {
+        let json = serde_json::to_string(c).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+        tx.execute("INSERT OR REPLACE INTO entities VALUES ('cover', ?1, ?2, ?3)", params![ord as i64, c.key(), json])?;
+    }
+    if sub.counts_from.is_some() || sub.counts_year.is_some() {
+        let cs = crate::substitutions::CountSettings { counts_from: sub.counts_from.clone(), counts_year: sub.counts_year.clone() };
+        tx.execute("INSERT INTO entities VALUES ('substitution_settings', 0, 'counts', ?1)", params![serde_json::to_string(&cs).unwrap_or_default()])?;
+    }
     if let Some(t) = &s.timetable {
         let id = "timetable".to_string();
         tx.execute("INSERT INTO entities VALUES ('timetable', 0, ?1, ?2)", params![id, serde_json::to_string(t).unwrap_or_default()])?;
@@ -125,14 +154,15 @@ pub fn load(path: &Path) -> Result<SchoolSetup, String> {
     let version: String = conn
         .query_row("SELECT value FROM meta WHERE key = 'schema_version'", [], |r| r.get(0))
         .map_err(|_| NOT_OURS.to_string())?;
-    match version.trim().parse::<u32>() {
-        Ok(v) if v > SCHEMA_VERSION.parse::<u32>().unwrap_or(1) => {
+    let version = match version.trim().parse::<u32>() {
+        Ok(v) if v > SCHEMA_VERSION => {
             return Err("This school file was made by a newer version of Timewizer. Please update Timewizer to open it.".into())
         }
-        Ok(_) => {}
+        Ok(v) => v,
         Err(_) => return Err(NOT_OURS.into()),
-    }
-    let setup = read(&conn).map_err(|e| format!("This school file is damaged or incomplete and could not be read ({e})."))?;
+    };
+    let mut setup = read(&conn).map_err(|e| format!("This school file is damaged or incomplete and could not be read ({e})."))?;
+    migrate(version, &mut setup);
     sanity_check(&setup)?;
     Ok(setup)
 }
@@ -163,6 +193,11 @@ fn sanity_check(s: &SchoolSetup) -> Result<(), String> {
         }
         if l.cards_per_week > 200 {
             return damaged(format!("a lesson has {} sessions a week (the most possible is 200).", l.cards_per_week));
+        }
+    }
+    for a in &s.substitutions.absences {
+        if crate::substitutions::parse_date(&a.from).is_none() || crate::substitutions::parse_date(&a.to).is_none() {
+            return damaged(format!("an absence has a date that does not exist (\"{}\" to \"{}\").", a.from, a.to));
         }
     }
     // A timetable can be out of date (a lesson or period was removed after building); that is
@@ -236,6 +271,15 @@ fn read(conn: &Connection) -> rusqlite::Result<SchoolSetup> {
         lessons: get_all(conn, "lesson")?,
         links: get_all(conn, "link")?,
         settings: get_all::<crate::settings::Settings>(conn, "settings")?.into_iter().next().unwrap_or_default(),
+        substitutions: {
+            let cs = get_all::<crate::substitutions::CountSettings>(conn, "substitution_settings")?.into_iter().next().unwrap_or_default();
+            crate::substitutions::Substitutions {
+                absences: get_all(conn, "absence")?,
+                covers: get_all(conn, "cover")?,
+                counts_from: cs.counts_from,
+                counts_year: cs.counts_year,
+            }
+        },
         timetable: get_all::<crate::solver::Timetable>(conn, "timetable")?.into_iter().next(),
     })
 }
@@ -392,6 +436,83 @@ mod tests {
         s.lessons[0].cards_per_week = 2;
         s.lessons[0].periods_per_card = 500;
         assert!(message(&saved("tall", &s)).contains("periods in a row"));
+    }
+
+    /// A file saved by Timewizer 0.1.3 (the demo school from `samples/`, built, one lesson locked)
+    /// must keep opening in every later version.
+    #[test]
+    fn opens_a_school_file_from_0_1_3() {
+        let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sample-school-0.1.3.twz");
+        let before = std::fs::read(&p).unwrap();
+        let s = load(&p).unwrap();
+        assert_eq!(std::fs::read(&p).unwrap(), before, "opening must not change the file");
+        assert_eq!(s.name, "Sample School");
+        assert!(!s.lessons.is_empty() && !s.master.teachers.is_empty());
+        let t = s.timetable.as_ref().expect("the timetable was saved");
+        let sessions: u32 = s.lessons.iter().map(|l| l.cards_per_week).sum();
+        assert_eq!(t.cards.len() as u32, sessions);
+        assert_eq!(t.cards.iter().filter(|c| c.locked).count(), 1);
+        // and it saves again in the current format
+        let q = tmp("from-0.1.3");
+        save(&q, &s).unwrap();
+        assert_eq!(load(&q).unwrap(), s);
+        let _ = std::fs::remove_file(q);
+    }
+
+    fn version_of(p: &std::path::Path) -> String {
+        Connection::open(p).unwrap().query_row("SELECT value FROM meta WHERE key = 'schema_version'", [], |r| r.get(0)).unwrap()
+    }
+
+    #[test]
+    fn substitutions_round_trip_and_set_the_file_version() {
+        use crate::substitutions::*;
+        let mut s = SchoolSetup::default_new("Subs");
+        let p = saved("subs-none", &s);
+        assert_eq!(version_of(&p), "1", "no substitutions: the old format, so 0.1.x can still open it");
+        let _ = std::fs::remove_file(&p);
+        s.substitutions.absences.push(Absence {
+            id: "a1".into(), teacher_id: "t1".into(), from: "2026-10-26".into(), to: "2026-10-28".into(),
+            periods: vec![PeriodRef { shift: "morning".into(), period: 2 }], note: "Course".into(),
+        });
+        let c = Cover {
+            absence_id: "a1".into(), date: "2026-10-26".into(), lesson_id: "l1".into(), number: 1, absent_teacher: "t1".into(),
+            cover_teacher: Some("t2".into()), no_cover: false, shift: "morning".into(), period: 2, length: 1, archived: false,
+        };
+        s.substitutions.covers = vec![c.clone(), Cover { number: 2, cover_teacher: None, no_cover: true, archived: true, ..c.clone() }];
+        s.substitutions.counts_from = Some("2026-09-01".into());
+        s.substitutions.counts_year = Some("2026-27".into());
+        let p = saved("subs", &s);
+        assert_eq!(version_of(&p), "2");
+        assert_eq!(load(&p).unwrap(), s);
+        // the same cover twice (a repeated save of one decision) does not stop the save
+        s.substitutions.covers.push(c);
+        save(&p, &s).unwrap();
+        assert_eq!(load(&p).unwrap().substitutions.covers.len(), 2);
+        // all removed again: back to the old format
+        s.substitutions = Default::default();
+        save(&p, &s).unwrap();
+        assert_eq!(version_of(&p), "1");
+        assert_eq!(load(&p).unwrap(), s);
+        // a version from the future is refused, version 2 opens
+        edit(&p, "UPDATE meta SET value = '3' WHERE key = 'schema_version'");
+        assert!(load(&p).unwrap_err().contains("newer version"));
+        edit(&p, "UPDATE meta SET value = '2' WHERE key = 'schema_version'");
+        assert!(load(&p).is_ok());
+        // an absence with an impossible date is a damaged file
+        edit(&p, r#"INSERT INTO entities VALUES ('absence', 0, 'x', '{"id":"x","teacherId":"t","from":"2026-02-30","to":"2026-03-01"}')"#);
+        assert!(message(&p).contains("absence has a date that does not exist"));
+    }
+
+    #[test]
+    fn a_0_1_3_file_has_no_substitutions_and_stays_in_the_old_format() {
+        let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sample-school-0.1.3.twz");
+        assert_eq!(version_of(&p), "1");
+        let s = load(&p).unwrap();
+        assert_eq!(s.substitutions, Default::default());
+        let q = tmp("from-0.1.3-subs");
+        save(&q, &s).unwrap();
+        assert_eq!(version_of(&q), "1");
+        let _ = std::fs::remove_file(q);
     }
 
     #[test]

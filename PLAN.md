@@ -95,10 +95,18 @@ Each milestone ends with something the owner can **run and test**. Do not start 
 - [x] One-command release build (`npm run release:linux`) and a GitHub workflow that builds the installers
 **Test:** installs on a clean Ubuntu machine.
 
+## Version 0.2.0
+- [x] Stage 1: backup to a folder (back up now, automatic backup on save, keep the newest N, restore as a new file)
+- [x] Stage 2: splash animation (skippable, reduced motion respected, can be switched off)
+- [x] Stage 3: undo/redo for every timetable edit, with a change history panel
+- [x] Stage 4: lock lessons and conflict colours (locks that make a build impossible are named)
+- [x] Stage 5: teacher substitutions (absences, cover suggestions, cover sheets); plan in docs/stage5-plan.md
+- [x] Stage 6: Excel and CSV export of class, teacher, room and master timetables
+
 ## Later (Phase 2)
 - [x] Windows installer (NSIS .exe + .msi, built by GitHub Actions; not yet tested on a real Windows PC)
 - [ ] aSc Timetables XML import / export
-- [ ] Substitutions module (blueprint section 9)
+- [x] Substitutions module (blueprint section 9), in 0.2.0
 - [ ] Make the GitHub repo public (when the project owner agrees)
 - [ ] Placement preferences (e.g. heavy subjects early in the day), waiting for input from a larger school
 - [ ] Bilingual (English / Urdu) user guide

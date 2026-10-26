@@ -1,10 +1,12 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { DoorOpen, Lock, Redo2, Undo2, Unlock, ZoomIn, ZoomOut } from 'lucide-react'
+import { DoorOpen, Lock, Unlock, ZoomIn, ZoomOut } from 'lucide-react'
 import { api, errText } from '@/lib/api'
 import type { ImproveReport, PlacedCard, Room, SchoolSetup, Shift, SlotInfo, Subject, SwapInfo, Timetable } from '@/lib/types'
 import { Button, Card, inputCls, inputStyle } from '@/components/ui'
 import { ImproveButton, QualityTable } from './Quality'
 import { inkOn } from '@/lib/color'
+import type { History } from '@/lib/history'
+import { HistoryPanel, UndoRedo } from './History'
 
 type Mode = 'class' | 'teacher' | 'room' | 'master'
 interface Ref { lessonId: string; number: number }
@@ -47,7 +49,7 @@ const Chip = memo(function Chip({ r, shift, c, compact, z, mode, sub, teachers, 
       onDragEnd={() => act.current.endDrag()}
       className={`group relative h-full min-h-0 overflow-hidden rounded-lg px-1.5 py-0.5 leading-tight shadow-sm ${locked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'}`}
       style={{ background: sub?.color ?? 'var(--line)', color: inkOn(sub?.color ?? '#DCD0BC'), opacity: dragging ? 0.4 : 1, ...swapStyle }}
-      title={`${sub?.name ?? ''} · ${classes} · ${teachers}${room ? ` · ${room.name}` : ''}${locked ? ' · locked' : ''}${sw ? (sw.ok ? ' — drop to swap' : ` — cannot swap: ${sw.reasons.join(' ')}`) : ''}`}>
+      title={`${sub?.name ?? ''} · ${classes} · ${teachers}${room ? ` · ${room.name}` : ''}${locked ? ' · locked (unlock it to move it)' : ''}${sw ? (sw.ok ? ' — drop to swap' : ` — cannot swap: ${sw.reasons.join(' ')}`) : ''}`}>
       <div className={compact ? 'truncate font-bold' : 'truncate text-xs font-bold'} style={compact ? { fontSize: `${0.62 * z}rem` } : undefined}>
         {sub?.shortName ?? sub?.name}{locked && <Lock size={10} className="ml-1 inline" />}
       </div>
@@ -65,10 +67,8 @@ const Chip = memo(function Chip({ r, shift, c, compact, z, mode, sub, teachers, 
   )
 })
 
-export interface History { undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean }
-
 export function TimetablePage({ setup, onTimetable, history }:
-  { setup: SchoolSetup; onTimetable: (t: Timetable) => void; history: History }) {
+  { setup: SchoolSetup; onTimetable: (t: Timetable, label: string) => void; history: History }) {
   const cards = useMemo(() => setup.timetable?.cards ?? [], [setup.timetable])
   const m = setup.master
   const enabled = setup.shifts.filter(s => s.enabled)
@@ -137,9 +137,28 @@ export function TimetablePage({ setup, onTimetable, history }:
   const shiftsFor: Shift[] = mode === 'class' ? enabled.filter(s => s.id === classById.get(chosen ?? '')?.shift)
     : mode === 'teacher' ? enabled.filter(s => teacherById.get(chosen ?? '')?.shifts.includes(s.id)) : enabled
 
+  // Plain words for the change history: "Science (6A)", "Tuesday period 3".
+  const what = (lessonId: string) => {
+    const l = lesson(lessonId)
+    const classes = l?.parts.map(p => classById.get(p.classId)?.shortName).filter(Boolean).join(', ')
+    return `${subjectById.get(l?.subject ?? '')?.name ?? 'A lesson'}${classes ? ` (${classes})` : ''}`
+  }
+  const where = (c: { shift: string; day: number; period: number }) =>
+    `${enabled.length > 1 ? `${enabled.find(x => x.id === c.shift)?.name ?? ''} shift, ` : ''}${setup.days[c.day]?.name ?? SHORT[c.day]} period ${c.period}`
+
   const fail = (e: unknown) => setMessage(errText(e))
   const doMove = async (r: Ref, day: number, period: number, room: string | null) => {
-    try { onTimetable(await api.moveCard(setup, r.lessonId, r.number, day, period, room)); setMessage(null) } catch (e) { fail(e) }
+    try {
+      const t = await api.moveCard(setup, r.lessonId, r.number, day, period, room)
+      const before = cards.find(c => same(c, r))
+      const after = t.cards.find(c => same(c, r))
+      const to = after ?? { shift: before?.shift ?? '', day, period }
+      const label = !before ? `Placed ${what(r.lessonId)} on ${where(to)}`
+        : before.day === day && before.period === period
+          ? `Changed the room of ${what(r.lessonId)} on ${where(to)}${after?.room ? ` to ${roomById.get(after.room)?.name ?? after.room}` : ''}`
+          : `Moved ${what(r.lessonId)} from ${where(before)} to ${where(to)}`
+      onTimetable(t, label); setMessage(null)
+    } catch (e) { fail(e) }
   }
   const startDrag = async (r: Ref, shift: string, placed: boolean) => {
     setDrag({ ...r, shift, placed }); setMessage(null); setOpts(new Map()); setSwaps(new Map())
@@ -153,7 +172,9 @@ export function TimetablePage({ setup, onTimetable, history }:
   const swapWith = async (target: Ref) => {
     const r = drag; endDrag()
     if (!r) return
-    try { onTimetable(await api.swapCards(setup, r.lessonId, r.number, target.lessonId, target.number)); setMessage(null) } catch (e) { fail(e) }
+    const a = cards.find(c => same(c, r)), b = cards.find(c => same(c, target))
+    const label = `Swapped ${what(r.lessonId)}${a ? ` (${where(a)})` : ''} with ${what(target.lessonId)}${b ? ` (${where(b)})` : ''}`
+    try { onTimetable(await api.swapCards(setup, r.lessonId, r.number, target.lessonId, target.number), label); setMessage(null) } catch (e) { fail(e) }
   }
   const setZoomSaved = (z: number) => {
     const v = Math.min(3, Math.max(0.8, Math.round(z * 10) / 10))
@@ -178,12 +199,15 @@ export function TimetablePage({ setup, onTimetable, history }:
     if (c?.locked) { setMessage('This lesson is locked. Unlock it first to take it off the timetable.'); return }
     // A "same time" link keeps its lessons together: take the whole group off, like locking does.
     const group = new Set(setup.links.find(k => k.lessons.includes(r.lessonId))?.lessons ?? [r.lessonId])
-    onTimetable({ cards: cards.filter(x => !(group.has(x.lessonId) && x.number === r.number)) })
+    onTimetable({ cards: cards.filter(x => !(group.has(x.lessonId) && x.number === r.number)) },
+      `Took ${what(r.lessonId)} off the timetable${c ? ` (was ${where(c)})` : ''}`)
   }
   const toggleLock = (r: Ref) => {
-    const lock = !cards.find(c => same(c, r))?.locked
+    const card = cards.find(c => same(c, r))
+    const lock = !card?.locked
     const group = new Set(setup.links.find(k => k.lessons.includes(r.lessonId))?.lessons ?? [r.lessonId])
-    onTimetable({ cards: cards.map(c => (group.has(c.lessonId) && c.number === r.number ? { ...c, locked: lock } : c)) })
+    onTimetable({ cards: cards.map(c => (group.has(c.lessonId) && c.number === r.number ? { ...c, locked: lock } : c)) },
+      `${lock ? 'Locked' : 'Unlocked'} ${what(r.lessonId)}${card ? ` on ${where(card)}` : ''}`)
   }
   const openRoomPicker = async (c: PlacedCard) => {
     try {
@@ -351,13 +375,12 @@ export function TimetablePage({ setup, onTimetable, history }:
           <div className="eyebrow">Step 12</div>
           <h2 className="mt-1 text-2xl font-semibold">Timetable</h2>
           <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-            Drag a lesson to a new time. Green is free, yellow is possible but not ideal, red is blocked. Drop it on another lesson to swap them (that lesson lights up green when the swap works). Hover a lesson to lock it or choose its room.
+            Drag a lesson to a new time. Green is free, amber is allowed but breaks a "nice to have" rule, red is a clash. Hover a box to see why. Drop a lesson on another lesson to swap them (that lesson lights up green when the swap works). Hover a lesson to lock it or choose its room; a locked lesson cannot be dragged until you unlock it.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <ImproveButton setup={setup} onTimetable={onTimetable} onResult={setImproved} />
-          <Button kind="ghost" onClick={history.undo} disabled={!history.canUndo} title="Undo (Ctrl+Z)"><Undo2 size={16} /> Undo</Button>
-          <Button kind="ghost" onClick={history.redo} disabled={!history.canRedo} title="Redo (Ctrl+Y)"><Redo2 size={16} /> Redo</Button>
+          <ImproveButton setup={setup} onTimetable={t => onTimetable(t, 'Improved the quality of the timetable')} onResult={setImproved} />
+          <UndoRedo history={history} />
         </div>
       </div>
 
@@ -399,7 +422,7 @@ export function TimetablePage({ setup, onTimetable, history }:
             </div>
           )}
           <div className="ml-auto flex flex-wrap items-center gap-3 text-xs" style={{ color: 'var(--muted)' }}>
-            {([['--success', 'Free'], ['--warning', 'Not ideal'], ['--danger', 'Blocked']] as const).map(([c, l]) => (
+            {([['--success', 'Free'], ['--warning', 'Allowed, not ideal'], ['--danger', 'Clash']] as const).map(([c, l]) => (
               <span key={l} className="flex items-center gap-1.5"><span className="h-3 w-3 rounded border-2" style={{ borderColor: `var(${c})`, background: tint(c, 25) }} /> {l}</span>
             ))}
           </div>
@@ -437,6 +460,8 @@ export function TimetablePage({ setup, onTimetable, history }:
             </div>
           )}
       </div>
+
+      <HistoryPanel history={history} />
 
       {picker && <RoomPicker picker={picker} setup={setup} onClose={() => setPicker(null)}
         onPick={room => { const p = picker; setPicker(null); doMove(p, p.day, p.period, room) }} />}

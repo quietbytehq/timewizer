@@ -1,109 +1,109 @@
 ﻿Class,Subject,Teachers,Room,Day,First period,Periods,Starts,Ends,Shift
-Grade 6 A,Physical Education,Imran Qureshi,Playground,Monday,1,1,08:00,08:40,Morning
-Grade 6 A,Social Studies,Gul Rukh,,Monday,2,1,08:40,09:20,Morning
-Grade 6 A,Science,Care Fernandes,,Monday,3,1,09:20,10:00,Morning
-Grade 6 A,English,Ayesha Khan,,Monday,4,1,10:20,11:00,Morning
-Grade 6 A,Mathematics,Bilal Ahmed,,Monday,5,1,11:00,11:40,Morning
-Grade 6 A,Urdu,Erum Shah,,Monday,6,1,11:40,12:20,Morning
-Grade 6 A,Urdu,Erum Shah,,Tuesday,1,1,08:00,08:40,Morning
+Grade 6 A,Mathematics,Bilal Ahmed,,Monday,1,1,08:00,08:40,Morning
+Grade 6 A,Urdu,Erum Shah,,Monday,2,1,08:40,09:20,Morning
+Grade 6 A,Physical Education,Imran Qureshi,Playground,Monday,3,1,09:20,10:00,Morning
+Grade 6 A,Science,Care Fernandes,,Monday,4,1,10:20,11:00,Morning
+Grade 6 A,English,Ayesha Khan,,Monday,5,1,11:00,11:40,Morning
+Grade 6 A,Science,Care Fernandes,,Tuesday,1,1,08:00,08:40,Morning
 Grade 6 A,English,Ayesha Khan,,Tuesday,2,1,08:40,09:20,Morning
-Grade 6 A,Social Studies,Gul Rukh,,Tuesday,3,1,09:20,10:00,Morning
-Grade 6 A,Islamic Studies,Imran Qureshi,,Tuesday,4,1,10:20,11:00,Morning
-Grade 6 A,Mathematics,Bilal Ahmed,,Tuesday,5,1,11:00,11:40,Morning
-Grade 6 A,English,Ayesha Khan,,Wednesday,1,1,08:00,08:40,Morning
-Grade 6 A,English,Ayesha Khan,,Wednesday,2,1,08:40,09:20,Morning
-Grade 6 A,Physical Education,Imran Qureshi,Playground,Wednesday,3,1,09:20,10:00,Morning
-Grade 6 A,Science,Care Fernandes,,Wednesday,4,1,10:20,11:00,Morning
-Grade 6 A,Urdu,Erum Shah,,Wednesday,5,1,11:00,11:40,Morning
-Grade 6 A,Mathematics,Bilal Ahmed,,Wednesday,6,1,11:40,12:20,Morning
+Grade 6 A,English,Ayesha Khan,,Tuesday,3,1,09:20,10:00,Morning
+Grade 6 A,Social Studies,Gul Rukh,,Tuesday,4,1,10:20,11:00,Morning
+Grade 6 A,Islamic Studies,Imran Qureshi,,Tuesday,5,1,11:00,11:40,Morning
+Grade 6 A,Mathematics,Bilal Ahmed,,Tuesday,6,1,11:40,12:20,Morning
+Grade 6 A,Physical Education,Imran Qureshi,Playground,Wednesday,1,1,08:00,08:40,Morning
+Grade 6 A,Urdu,Erum Shah,,Wednesday,2,1,08:40,09:20,Morning
+Grade 6 A,Social Studies,Gul Rukh,,Wednesday,3,1,09:20,10:00,Morning
+Grade 6 A,Mathematics,Bilal Ahmed,,Wednesday,4,1,10:20,11:00,Morning
+Grade 6 A,Science,Care Fernandes,,Wednesday,5,1,11:00,11:40,Morning
+Grade 6 A,English,Ayesha Khan,,Wednesday,6,1,11:40,12:20,Morning
 Grade 6 A,Computer Studies,Hamza Noor,Computer Lab,Thursday,1,2,08:00,09:20,Morning
 Grade 6 A,Art,Hamza Noor,,Thursday,3,1,09:20,10:00,Morning
-Grade 6 A,English,Ayesha Khan,,Thursday,4,1,10:20,11:00,Morning
-Grade 6 A,Science,Care Fernandes,,Thursday,5,1,11:00,11:40,Morning
-Grade 6 A,Mathematics,Bilal Ahmed,,Thursday,6,1,11:40,12:20,Morning
+Grade 6 A,Urdu,Erum Shah,,Thursday,4,1,10:20,11:00,Morning
+Grade 6 A,Mathematics,Bilal Ahmed,,Thursday,5,1,11:00,11:40,Morning
+Grade 6 A,English,Ayesha Khan,,Thursday,6,1,11:40,12:20,Morning
 Grade 6 A,Social Studies,Gul Rukh,,Friday,1,1,08:00,08:40,Morning
 Grade 6 A,Islamic Studies,Imran Qureshi,,Friday,2,1,08:40,09:20,Morning
-Grade 6 A,Urdu,Erum Shah,,Friday,3,1,09:20,10:00,Morning
-Grade 6 A,Science,Care Fernandes,,Friday,4,1,10:20,11:00,Morning
+Grade 6 A,Science,Care Fernandes,,Friday,3,1,09:20,10:00,Morning
+Grade 6 A,Urdu,Erum Shah,,Friday,4,1,10:20,11:00,Morning
 Grade 6 A,Mathematics,Bilal Ahmed,,Friday,5,1,11:00,11:40,Morning
 Grade 6 B,Computer Studies,Hamza Noor,Computer Lab,Monday,1,2,08:00,09:20,Morning
-Grade 6 B,Art,Hamza Noor,,Monday,3,1,09:20,10:00,Morning
-Grade 6 B,Mathematics,Bilal Ahmed,,Monday,4,1,10:20,11:00,Morning
-Grade 6 B,English,Ayesha Khan,,Monday,5,1,11:00,11:40,Morning
-Grade 6 B,Science,Care Fernandes,,Monday,6,1,11:40,12:20,Morning
-Grade 6 B,Urdu,Erum Shah,,Monday,7,1,12:20,13:00,Morning
+Grade 6 B,Mathematics,Bilal Ahmed,,Monday,3,1,09:20,10:00,Morning
+Grade 6 B,English,Ayesha Khan,,Monday,4,1,10:20,11:00,Morning
+Grade 6 B,Science,Care Fernandes,,Monday,5,1,11:00,11:40,Morning
+Grade 6 B,Islamic Studies,Imran Qureshi,,Monday,6,1,11:40,12:20,Morning
+Grade 6 B,Social Studies,Gul Rukh,,Monday,7,1,12:20,13:00,Morning
 Grade 6 B,English,Ayesha Khan,,Tuesday,1,1,08:00,08:40,Morning
 Grade 6 B,Mathematics,Bilal Ahmed,,Tuesday,2,1,08:40,09:20,Morning
 Grade 6 B,Science,Care Fernandes,,Tuesday,3,1,09:20,10:00,Morning
-Grade 6 B,Social Studies,Gul Rukh,,Tuesday,4,1,10:20,11:00,Morning
-Grade 6 B,Islamic Studies,Imran Qureshi,,Tuesday,5,1,11:00,11:40,Morning
-Grade 6 B,Physical Education,Imran Qureshi,Playground,Wednesday,2,1,08:40,09:20,Morning
-Grade 6 B,English,Ayesha Khan,,Wednesday,3,1,09:20,10:00,Morning
-Grade 6 B,Mathematics,Bilal Ahmed,,Wednesday,4,1,10:20,11:00,Morning
-Grade 6 B,Science,Care Fernandes,,Wednesday,5,1,11:00,11:40,Morning
-Grade 6 B,Urdu,Erum Shah,,Wednesday,6,1,11:40,12:20,Morning
-Grade 6 B,Social Studies,Gul Rukh,,Wednesday,7,1,12:20,13:00,Morning
-Grade 6 B,Urdu,Erum Shah,,Thursday,1,1,08:00,08:40,Morning
-Grade 6 B,English,Ayesha Khan,,Thursday,2,1,08:40,09:20,Morning
-Grade 6 B,English,Ayesha Khan,,Thursday,3,1,09:20,10:00,Morning
+Grade 6 B,Urdu,Erum Shah,,Tuesday,4,1,10:20,11:00,Morning
+Grade 6 B,Art,Hamza Noor,,Tuesday,5,1,11:00,11:40,Morning
+Grade 6 B,Physical Education,Imran Qureshi,Playground,Tuesday,6,1,11:40,12:20,Morning
+Grade 6 B,Urdu,Erum Shah,,Wednesday,1,1,08:00,08:40,Morning
+Grade 6 B,Social Studies,Gul Rukh,,Wednesday,2,1,08:40,09:20,Morning
+Grade 6 B,Mathematics,Bilal Ahmed,,Wednesday,3,1,09:20,10:00,Morning
+Grade 6 B,English,Ayesha Khan,,Wednesday,4,1,10:20,11:00,Morning
+Grade 6 B,English,Ayesha Khan,,Wednesday,5,1,11:00,11:40,Morning
+Grade 6 B,Science,Care Fernandes,,Wednesday,6,1,11:40,12:20,Morning
+Grade 6 B,Mathematics,Bilal Ahmed,,Thursday,1,1,08:00,08:40,Morning
+Grade 6 B,Science,Care Fernandes,,Thursday,2,1,08:40,09:20,Morning
+Grade 6 B,Urdu,Erum Shah,,Thursday,3,1,09:20,10:00,Morning
 Grade 6 B,Islamic Studies,Imran Qureshi,,Thursday,4,1,10:20,11:00,Morning
-Grade 6 B,Mathematics,Bilal Ahmed,,Thursday,5,1,11:00,11:40,Morning
+Grade 6 B,English,Ayesha Khan,,Thursday,5,1,11:00,11:40,Morning
 Grade 6 B,Physical Education,Imran Qureshi,Playground,Friday,1,1,08:00,08:40,Morning
 Grade 6 B,Social Studies,Gul Rukh,,Friday,2,1,08:40,09:20,Morning
-Grade 6 B,Mathematics,Bilal Ahmed,,Friday,3,1,09:20,10:00,Morning
-Grade 6 B,Urdu,Erum Shah,,Friday,4,1,10:20,11:00,Morning
-Grade 6 B,Science,Care Fernandes,,Friday,5,1,11:00,11:40,Morning
-Grade 7 A,Social Studies,Gul Rukh,,Monday,1,1,08:00,08:40,Morning
+Grade 6 B,Urdu,Erum Shah,,Friday,3,1,09:20,10:00,Morning
+Grade 6 B,Mathematics,Bilal Ahmed,,Friday,4,1,10:20,11:00,Morning
+Grade 7 A,Science,Care Fernandes,,Monday,1,1,08:00,08:40,Morning
 Grade 7 A,Mathematics,Bilal Ahmed,,Monday,2,1,08:40,09:20,Morning
-Grade 7 A,Physical Education,Imran Qureshi,Playground,Monday,3,1,09:20,10:00,Morning
-Grade 7 A,Science,Care Fernandes,,Monday,4,1,10:20,11:00,Morning
-Grade 7 A,Urdu,Farhan Iqbal,,Monday,5,1,11:00,11:40,Morning
+Grade 7 A,Urdu,Farhan Iqbal,,Monday,3,1,09:20,10:00,Morning
+Grade 7 A,Physical Education,Imran Qureshi,Playground,Monday,4,1,10:20,11:00,Morning
+Grade 7 A,Social Studies,Gul Rukh,,Monday,5,1,11:00,11:40,Morning
 Grade 7 A,English,Danish Ali,,Monday,6,1,11:40,12:20,Morning
 Grade 7 A,Computer Studies,Hamza Noor,Computer Lab,Tuesday,1,2,08:00,09:20,Morning
-Grade 7 A,Mathematics,Bilal Ahmed,,Tuesday,3,1,09:20,10:00,Morning
-Grade 7 A,English,Danish Ali,,Tuesday,4,1,10:20,11:00,Morning
-Grade 7 A,Science,Care Fernandes,,Tuesday,5,1,11:00,11:40,Morning
-Grade 7 A,Islamic Studies,Imran Qureshi,,Wednesday,1,1,08:00,08:40,Morning
-Grade 7 A,Mathematics,Bilal Ahmed,,Wednesday,2,1,08:40,09:20,Morning
-Grade 7 A,Art,Hamza Noor,,Wednesday,3,1,09:20,10:00,Morning
-Grade 7 A,English,Danish Ali,,Wednesday,4,1,10:20,11:00,Morning
-Grade 7 A,Urdu,Farhan Iqbal,,Wednesday,5,1,11:00,11:40,Morning
-Grade 7 A,Social Studies,Gul Rukh,,Wednesday,6,1,11:40,12:20,Morning
-Grade 7 A,English,Danish Ali,,Thursday,1,1,08:00,08:40,Morning
-Grade 7 A,Social Studies,Gul Rukh,,Thursday,2,1,08:40,09:20,Morning
-Grade 7 A,Physical Education,Imran Qureshi,Playground,Thursday,3,1,09:20,10:00,Morning
-Grade 7 A,Mathematics,Bilal Ahmed,,Thursday,4,1,10:20,11:00,Morning
-Grade 7 A,Urdu,Farhan Iqbal,,Thursday,5,1,11:00,11:40,Morning
-Grade 7 A,Science,Care Fernandes,,Thursday,6,1,11:40,12:20,Morning
+Grade 7 A,Art,Hamza Noor,,Tuesday,3,1,09:20,10:00,Morning
+Grade 7 A,Mathematics,Bilal Ahmed,,Tuesday,4,1,10:20,11:00,Morning
+Grade 7 A,Social Studies,Gul Rukh,,Tuesday,5,1,11:00,11:40,Morning
+Grade 7 A,English,Danish Ali,,Tuesday,6,1,11:40,12:20,Morning
+Grade 7 A,Mathematics,Bilal Ahmed,,Wednesday,1,1,08:00,08:40,Morning
+Grade 7 A,Physical Education,Imran Qureshi,Playground,Wednesday,2,1,08:40,09:20,Morning
+Grade 7 A,Islamic Studies,Imran Qureshi,,Wednesday,3,1,09:20,10:00,Morning
+Grade 7 A,Science,Care Fernandes,,Wednesday,4,1,10:20,11:00,Morning
+Grade 7 A,English,Danish Ali,,Wednesday,5,1,11:00,11:40,Morning
+Grade 7 A,Urdu,Farhan Iqbal,,Wednesday,6,1,11:40,12:20,Morning
+Grade 7 A,Social Studies,Gul Rukh,,Thursday,1,1,08:00,08:40,Morning
+Grade 7 A,Mathematics,Bilal Ahmed,,Thursday,2,1,08:40,09:20,Morning
+Grade 7 A,Science,Care Fernandes,,Thursday,3,1,09:20,10:00,Morning
+Grade 7 A,Urdu,Farhan Iqbal,,Thursday,4,1,10:20,11:00,Morning
+Grade 7 A,English,Danish Ali,,Thursday,5,1,11:00,11:40,Morning
 Grade 7 A,Mathematics,Bilal Ahmed,,Friday,1,1,08:00,08:40,Morning
 Grade 7 A,Science,Care Fernandes,,Friday,2,1,08:40,09:20,Morning
-Grade 7 A,Islamic Studies,Imran Qureshi,,Friday,3,1,09:20,10:00,Morning
+Grade 7 A,Urdu,Farhan Iqbal,,Friday,3,1,09:20,10:00,Morning
 Grade 7 A,English,Danish Ali,,Friday,4,1,10:20,11:00,Morning
-Grade 7 A,Urdu,Farhan Iqbal,,Friday,5,1,11:00,11:40,Morning
-Grade 7 B,Mathematics,Bilal Ahmed,,Monday,1,1,08:00,08:40,Morning
-Grade 7 B,Islamic Studies,Imran Qureshi,,Monday,2,1,08:40,09:20,Morning
-Grade 7 B,Social Studies,Gul Rukh,,Monday,3,1,09:20,10:00,Morning
+Grade 7 A,Islamic Studies,Imran Qureshi,,Friday,5,1,11:00,11:40,Morning
+Grade 7 B,Physical Education,Imran Qureshi,Playground,Monday,2,1,08:40,09:20,Morning
+Grade 7 B,Science,Care Fernandes,,Monday,3,1,09:20,10:00,Morning
 Grade 7 B,Urdu,Farhan Iqbal,,Monday,4,1,10:20,11:00,Morning
-Grade 7 B,English,Danish Ali,,Monday,5,1,11:00,11:40,Morning
-Grade 7 B,Mathematics,Bilal Ahmed,,Tuesday,1,1,08:00,08:40,Morning
-Grade 7 B,Social Studies,Gul Rukh,,Tuesday,2,1,08:40,09:20,Morning
-Grade 7 B,Art,Hamza Noor,,Tuesday,3,1,09:20,10:00,Morning
-Grade 7 B,Science,Care Fernandes,,Tuesday,4,1,10:20,11:00,Morning
+Grade 7 B,Mathematics,Bilal Ahmed,,Monday,5,1,11:00,11:40,Morning
+Grade 7 B,Social Studies,Gul Rukh,,Monday,6,1,11:40,12:20,Morning
+Grade 7 B,English,Danish Ali,,Monday,7,1,12:20,13:00,Morning
+Grade 7 B,Urdu,Farhan Iqbal,,Tuesday,1,1,08:00,08:40,Morning
+Grade 7 B,Science,Care Fernandes,,Tuesday,2,1,08:40,09:20,Morning
+Grade 7 B,Mathematics,Bilal Ahmed,,Tuesday,3,1,09:20,10:00,Morning
+Grade 7 B,Islamic Studies,Imran Qureshi,,Tuesday,4,1,10:20,11:00,Morning
 Grade 7 B,English,Danish Ali,,Tuesday,5,1,11:00,11:40,Morning
-Grade 7 B,Physical Education,Imran Qureshi,Playground,Tuesday,6,1,11:40,12:20,Morning
+Grade 7 B,Social Studies,Gul Rukh,,Tuesday,6,1,11:40,12:20,Morning
 Grade 7 B,Computer Studies,Hamza Noor,Computer Lab,Wednesday,1,2,08:00,09:20,Morning
-Grade 7 B,English,Danish Ali,,Wednesday,3,1,09:20,10:00,Morning
-Grade 7 B,Urdu,Farhan Iqbal,,Wednesday,4,1,10:20,11:00,Morning
+Grade 7 B,Art,Hamza Noor,,Wednesday,3,1,09:20,10:00,Morning
+Grade 7 B,English,Danish Ali,,Wednesday,4,1,10:20,11:00,Morning
 Grade 7 B,Mathematics,Bilal Ahmed,,Wednesday,5,1,11:00,11:40,Morning
-Grade 7 B,Science,Care Fernandes,,Wednesday,6,1,11:40,12:20,Morning
-Grade 7 B,Social Studies,Gul Rukh,,Thursday,1,1,08:00,08:40,Morning
-Grade 7 B,Mathematics,Bilal Ahmed,,Thursday,2,1,08:40,09:20,Morning
-Grade 7 B,English,Danish Ali,,Thursday,3,1,09:20,10:00,Morning
-Grade 7 B,Science,Care Fernandes,,Thursday,4,1,10:20,11:00,Morning
-Grade 7 B,Islamic Studies,Imran Qureshi,,Thursday,5,1,11:00,11:40,Morning
-Grade 7 B,Urdu,Farhan Iqbal,,Thursday,6,1,11:40,12:20,Morning
+Grade 7 B,Science,Care Fernandes,,Thursday,1,1,08:00,08:40,Morning
+Grade 7 B,Social Studies,Gul Rukh,,Thursday,2,1,08:40,09:20,Morning
+Grade 7 B,Physical Education,Imran Qureshi,Playground,Thursday,3,1,09:20,10:00,Morning
+Grade 7 B,Mathematics,Bilal Ahmed,,Thursday,4,1,10:20,11:00,Morning
+Grade 7 B,Urdu,Farhan Iqbal,,Thursday,5,1,11:00,11:40,Morning
+Grade 7 B,English,Danish Ali,,Thursday,6,1,11:40,12:20,Morning
 Grade 7 B,Science,Care Fernandes,,Friday,1,1,08:00,08:40,Morning
-Grade 7 B,Mathematics,Bilal Ahmed,,Friday,2,1,08:40,09:20,Morning
-Grade 7 B,English,Danish Ali,,Friday,3,1,09:20,10:00,Morning
-Grade 7 B,Urdu,Farhan Iqbal,,Friday,4,1,10:20,11:00,Morning
-Grade 7 B,Physical Education,Imran Qureshi,Playground,Friday,5,1,11:00,11:40,Morning
+Grade 7 B,Urdu,Farhan Iqbal,,Friday,2,1,08:40,09:20,Morning
+Grade 7 B,Mathematics,Bilal Ahmed,,Friday,3,1,09:20,10:00,Morning
+Grade 7 B,Islamic Studies,Imran Qureshi,,Friday,4,1,10:20,11:00,Morning
+Grade 7 B,English,Danish Ali,,Friday,5,1,11:00,11:40,Morning

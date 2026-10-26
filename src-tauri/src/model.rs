@@ -63,6 +63,9 @@ pub struct SchoolSetup {
     /// School-wide limits and preferences.
     #[serde(default)]
     pub settings: crate::settings::Settings,
+    /// Absences and cover teachers (kept apart from the timetable, which they never change).
+    #[serde(default)]
+    pub substitutions: crate::substitutions::Substitutions,
     /// The generated timetable, if any.
     #[serde(default)]
     pub timetable: Option<crate::solver::Timetable>,
@@ -146,6 +149,7 @@ impl SchoolSetup {
             logo: None,
             links: vec![],
             settings: Default::default(),
+            substitutions: Default::default(),
             timetable: None,
         }
     }

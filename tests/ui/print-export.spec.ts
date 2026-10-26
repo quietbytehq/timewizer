@@ -198,7 +198,7 @@ test.describe('print and export', () => {
     await openPrint(page)
     const csv = path.join(tmpDir(), 'lessons.csv')
     await setDialog(page, { save: csv })
-    await page.getByRole('button', { name: 'Save CSV…' }).click()
+    await page.getByRole('button', { name: 'Save lesson list (CSV)…' }).click()
     await expect(status(page)).toContainText('Saved the list of lessons')
     const lines = fs.readFileSync(csv, 'utf8').replace(/^﻿/, '').trim().split('\n')
     expect(lines[0]).toBe('Class,Subject,Teachers,Room,Day,First period,Periods,Starts,Ends,Shift')
@@ -212,6 +212,44 @@ test.describe('print and export', () => {
     const b = fs.readFileSync(xlsx)
     expect(b.subarray(0, 2).toString()).toBe('PK')
     expect(b.length).toBeGreaterThan(8000)
+  })
+
+  test('Excel and the timetables CSV hold what is ticked, with the period times', async ({ page }) => {
+    await sampleSchool(page)
+    await openPrint(page)
+    // only Grade 6 A and the master timetable
+    await page.getByLabel('All teachers', { exact: true }).uncheck()
+    await page.getByLabel('All rooms', { exact: true }).uncheck()
+    await page.getByLabel('All classes', { exact: true }).uncheck()
+    await page.locator('summary', { hasText: 'Classes' }).click()
+    await page.getByLabel('Grade 6 A', { exact: true }).check()
+    const csv = path.join(tmpDir(), 'timetables.csv')
+    await setDialog(page, { save: csv })
+    await page.getByRole('button', { name: 'Save CSV…', exact: true }).click()
+    await expect(status(page)).toContainText('Saved the timetables as a CSV file')
+    const text = fs.readFileSync(csv, 'utf8').replace(/^\uFEFF/, '')
+    const lines = text.trim().split(/\r?\n/)
+    expect(lines[0]).toBe('Class: Grade 6 A,Morning shift')
+    expect(lines[1]).toBe('Period,Time,Monday,Tuesday,Wednesday,Thursday,Friday')
+    expect(lines[2]).toMatch(/^1,08:00–08:40,/)
+    expect(text).toContain('Master timetable,Morning shift')
+    expect(text).toContain('Time,08:00–08:40,')
+    expect(text).not.toContain('Grade 6 B,')
+    expect(text).not.toContain('Teacher:')
+
+    const xlsx = path.join(tmpDir(), 'timetables.xlsx')
+    await setDialog(page, { save: xlsx })
+    await page.getByRole('button', { name: 'Save Excel…' }).click()
+    await expect(status(page)).toContainText('Saved the Excel workbook')
+    expect(fs.readFileSync(xlsx).subarray(0, 2).toString()).toBe('PK')
+
+    // nothing ticked: Excel and CSV wait for a choice, the lesson list does not
+    await page.getByLabel('Grade 6 A', { exact: true }).uncheck()
+    await page.getByLabel('Master timetable (all classes together)').uncheck()
+    await expect(page.getByText('Nothing is chosen. Tick something above.')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Save Excel…' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Save CSV…', exact: true })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Save lesson list (CSV)…' })).toBeEnabled()
   })
 
   test('many classes are split over several master pages so each row stays readable', async ({ page }) => {

@@ -105,7 +105,7 @@
       fire(chip, 'dragstart')
       await waitFor(() => mark.lit, 'coloured slots')
       await paint()
-      const cells = [...document.querySelectorAll('td div:not([draggable])[style*="outline"][style*="var(--success)"]')].filter(c => !c.querySelector('[draggable]'))
+      const cells = [...document.querySelectorAll('td div:not([draggable])[style*="outline"]:is([style*="var(--success)"], [style*="var(--warning)"])')].filter(c => !c.querySelector('[draggable]'))
       if (cells.length) {
         target = cells[0]; dragged = chip
         res.steps['drag: pick up -> slots coloured'] = mark.lit - mark.dragstart

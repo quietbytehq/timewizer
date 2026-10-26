@@ -2,7 +2,7 @@
 //! Only built with `--features uitest`; it is not part of the released app.
 use crate::jobs::{Jobs, Sink};
 use crate::model::SchoolSetup;
-use crate::{check, copy, db, export, importer, lessons, solver};
+use crate::{backup, check, copy, db, export, importer, lessons, solver, substitutions};
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 use std::io::{Read, Write};
@@ -26,6 +26,7 @@ struct Bridge {
     jobs: Jobs,
     events: Arc<Queue>,
     startup: Mutex<Option<String>>,
+    prefs: backup::PrefsStore,
 }
 
 fn arg<T: DeserializeOwned>(args: &Value, key: &str) -> Result<T, String> {
@@ -70,20 +71,38 @@ impl Bridge {
                 Ok(json!({ "path": p.to_string_lossy(), "setup": setup }))
             }
             "save_school" => {
-                let setup: SchoolSetup = arg(a, "setup")?;
+                let (setup, stamp): (SchoolSetup, Option<String>) = (arg(a, "setup")?, arg(a, "stamp")?);
                 let p = self.current.lock().unwrap().clone().ok_or("No school is open.")?;
                 db::save(&p, &setup)?;
-                Ok(Value::Null)
+                out(self.prefs.after_save(&p, &setup, stamp.as_deref()))
             }
             "save_school_as" => {
-                let (path, setup): (String, SchoolSetup) = (arg(a, "path")?, arg(a, "setup")?);
+                let (path, setup, stamp): (String, SchoolSetup, Option<String>) = (arg(a, "path")?, arg(a, "setup")?, arg(a, "stamp")?);
                 let p = with_ext(path);
                 if p.exists() {
                     std::fs::remove_file(&p).map_err(|e| format!("Could not replace the existing file: {e}"))?;
                 }
                 db::save(&p, &setup)?;
                 *self.current.lock().unwrap() = Some(p.clone());
-                out(p.to_string_lossy())
+                out(self.prefs.after_save(&p, &setup, stamp.as_deref()))
+            }
+            // The tests stand in for the folder dialog, so every folder counts as chosen here.
+            "get_preferences" => out(self.prefs.get()),
+            "set_backup_prefs" => out(self.prefs.set_backup(arg(a, "backup")?, |_| true)?),
+            "test_reset_preferences" => out(self.prefs.reset()?),
+            "set_splash" => out(self.prefs.set_splash(arg(a, "on")?)?),
+            "back_up_now" => {
+                let current = self.current.lock().unwrap().clone();
+                out(self.prefs.back_up_now(current.as_deref(), &arg(a, "setup")?, &arg::<String>(a, "stamp")?)?)
+            }
+            "list_backups" => out(self.prefs.list()?),
+            "restore_backup" => {
+                let (backup, path): (String, String) = (arg(a, "backup")?, arg(a, "path")?);
+                let target = with_ext(path);
+                let current = self.current.lock().unwrap().clone();
+                let setup = self.prefs.restore(Path::new(&backup), &target, current.as_deref())?;
+                *self.current.lock().unwrap() = Some(target.clone());
+                Ok(json!({ "path": target.to_string_lossy(), "setup": setup }))
             }
             "close_school" => {
                 *self.current.lock().unwrap() = None;
@@ -131,8 +150,31 @@ impl Bridge {
                 std::fs::write(&path, export::csv_text(&setup)?).map_err(|e| format!("Could not save the file: {e}"))?;
                 Ok(Value::Null)
             }
+            "cover_day" => out(substitutions::cover_day(&arg(a, "setup")?, &arg::<String>(a, "date")?)?),
+            "cover_counts" => out(substitutions::cover_counts(&arg(a, "setup")?)),
+            "reset_cover_counts" => {
+                let (setup, today): (SchoolSetup, String) = (arg(a, "setup")?, arg(a, "today")?);
+                let mut sub = setup.substitutions;
+                substitutions::reset_counts(&mut sub, &today, &setup.academic_year);
+                out(sub)
+            }
+            "check_absence" => out(substitutions::check_absence(&arg(a, "setup")?, &arg(a, "absence")?)?),
+            "cover_sheet" => out(substitutions::cover_sheet(&arg(a, "setup")?, &arg::<String>(a, "from")?, &arg::<String>(a, "to")?)?),
+            "export_cover_csv" => {
+                let (setup, from, to, path): (SchoolSetup, String, String, String) = (arg(a, "setup")?, arg(a, "from")?, arg(a, "to")?, arg(a, "path")?);
+                std::fs::write(&path, substitutions::cover_sheet_csv(&setup, &from, &to)?).map_err(|e| format!("Could not save the file: {e}"))?;
+                Ok(Value::Null)
+            }
             "export_excel" => {
-                export::write_excel(&arg::<SchoolSetup>(a, "setup")?, Path::new(&arg::<String>(a, "path")?))?;
+                let setup: SchoolSetup = arg(a, "setup")?;
+                let sel = arg::<Option<export::ExportSelection>>(a, "selection")?.unwrap_or_else(|| export::ExportSelection::everything(&setup));
+                export::write_excel(&setup, Path::new(&arg::<String>(a, "path")?), &sel)?;
+                Ok(Value::Null)
+            }
+            "export_timetables_csv" => {
+                let setup: SchoolSetup = arg(a, "setup")?;
+                let sel = arg::<Option<export::ExportSelection>>(a, "selection")?.unwrap_or_else(|| export::ExportSelection::everything(&setup));
+                std::fs::write(arg::<String>(a, "path")?, export::timetables_csv(&setup, &sel)?).map_err(|e| format!("Could not save the file: {e}"))?;
                 Ok(Value::Null)
             }
             "write_file" => {
@@ -234,11 +276,16 @@ fn handle(mut s: TcpStream, b: &Bridge, dist: &Path) {
     }
 }
 
+/// A preferences file of its own for each run, so tests never see (or change) the real one.
+fn prefs_file() -> PathBuf {
+    std::env::temp_dir().join(format!("timewizer-uibridge-{}", std::process::id())).join("preferences.json")
+}
+
 /// Runs until the process is stopped.
 pub fn serve(dist: &str, port: u16) {
     let listener = TcpListener::bind(("127.0.0.1", port)).expect("could not open the port");
     let events = Arc::new(Queue::default());
-    let bridge = Arc::new(Bridge { current: Mutex::new(None), jobs: Jobs::default(), events, startup: Mutex::new(None) });
+    let bridge = Arc::new(Bridge { current: Mutex::new(None), jobs: Jobs::default(), events, startup: Mutex::new(None), prefs: backup::PrefsStore::new(prefs_file()) });
     let dist = PathBuf::from(dist);
     eprintln!("uibridge listening on http://127.0.0.1:{port}");
     for conn in listener.incoming().flatten() {

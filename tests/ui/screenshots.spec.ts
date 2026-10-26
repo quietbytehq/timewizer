@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { buildTimetable, setDialog, cellsWhere, go, importSample, lessonChip, newSchool, openApp, openTimetable, pickEntity, pickUp, pickView, setImproveSeconds, shot, type Theme } from './helpers'
 
@@ -102,13 +103,39 @@ async function tour(page: Page, theme: Theme) {
     await setDialog(page, { open: dir })
     await page.getByRole('button', { name: /Save pictures/ }).click()
     await expect(page.getByRole('status')).toContainText('Saved 1 picture')
+    for (const g of ['All classes', 'All teachers', 'All rooms']) await page.getByLabel(g, { exact: true }).check()
     await setDialog(page, { save: path.join(dir, 'Riverside-timetable.xlsx') })
     await page.getByRole('button', { name: 'Save Excel…' }).click()
     await expect(page.getByRole('status')).toContainText('Excel')
     await setDialog(page, { save: path.join(dir, 'Riverside-timetable.csv') })
-    await page.getByRole('button', { name: 'Save CSV…' }).click()
+    await page.getByRole('button', { name: 'Save lesson list (CSV)…' }).click()
     await expect(page.getByRole('status')).toContainText('list of lessons')
+    await setDialog(page, { save: path.join(dir, 'Riverside-timetables.csv') })
+    await page.getByRole('button', { name: 'Save CSV…', exact: true }).click()
+    await expect(page.getByRole('status')).toContainText('timetables as a CSV file')
   }
+  // backups (added at the end so the earlier picture numbers stay the same)
+  const backups = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'tw-shots-')), 'School backups')
+  fs.mkdirSync(backups)
+  await go(page, 'Backups')
+  await setDialog(page, { open: [backups] })
+  await page.getByRole('button', { name: 'Choose folder…' }).click()
+  await page.getByRole('switch', { name: 'Back up every time I save' }).click()
+  await page.getByRole('button', { name: 'Back up now' }).click()
+  await expect(page.getByRole('list', { name: 'Backups' }).getByRole('listitem')).toHaveCount(1)
+  await snap('backups')
+  await page.evaluate(() => (window as any).__TAURI_INTERNALS__.invoke('test_reset_preferences'))
+  // substitutions: a teacher away for a day, one lesson covered, one with no cover needed
+  await go(page, 'Substitutions')
+  await page.getByLabel('Teacher').selectOption({ label: 'Bilal Ahmed' })
+  await page.getByLabel('First day').fill('2026-11-02')
+  await page.getByLabel('Last day').fill('2026-11-02')
+  await page.getByLabel('Note (optional)').fill('Course')
+  await page.getByRole('button', { name: 'Add absence' }).click()
+  await page.getByTestId('need').first().getByRole('button', { name: /^Accept / }).click()
+  await page.getByTestId('need').nth(1).getByRole('button', { name: /^No cover needed/ }).click()
+  await expect(page.getByTestId('cover-total')).toHaveText('1')
+  await snap('substitutions')
   expect(errors).toEqual([])
 }
 

@@ -30,6 +30,7 @@ for (const [dir, ext] of plan.want) {
   }
   found.push(...files.map(f => path.join(d, f)))
 }
+for (const f of found) if (f.endsWith('.deb')) run('node', ['scripts/check-deb.mjs', f])
 fs.mkdirSync('release', { recursive: true })
 for (const f of fs.readdirSync('release')) if (f.endsWith(plan.want[0][1]) || f.endsWith(plan.want[1][1]) || f === plan.sums) fs.rmSync(path.join('release', f))
 const sums = []

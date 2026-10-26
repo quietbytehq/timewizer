@@ -1,0 +1,159 @@
+﻿Class: Grade 6 A,Morning shift
+Period,Time,Monday,Tuesday,Wednesday,Thursday,Friday
+1,08:00–08:40,Mathematics · Bilal Ahmed,Science · Care Fernandes,Physical Education · Imran Qureshi · Playground,Computer Studies · Hamza Noor · Computer Lab,Social Studies · Gul Rukh
+2,08:40–09:20,Urdu · Erum Shah,English · Ayesha Khan,Urdu · Erum Shah,Computer Studies (continued),Islamic Studies · Imran Qureshi
+3,09:20–10:00,Physical Education · Imran Qureshi · Playground,English · Ayesha Khan,Social Studies · Gul Rukh,Art · Hamza Noor,Science · Care Fernandes
+4,10:20–11:00,Science · Care Fernandes,Social Studies · Gul Rukh,Mathematics · Bilal Ahmed,Urdu · Erum Shah,Urdu · Erum Shah
+5,11:00–11:40,English · Ayesha Khan,Islamic Studies · Imran Qureshi,Science · Care Fernandes,Mathematics · Bilal Ahmed,Mathematics · Bilal Ahmed
+6,11:40–12:20,,Mathematics · Bilal Ahmed,English · Ayesha Khan,English · Ayesha Khan,-
+7,12:20–13:00,,,,,-
+
+Class: Grade 6 B,Morning shift
+Period,Time,Monday,Tuesday,Wednesday,Thursday,Friday
+1,08:00–08:40,Computer Studies · Hamza Noor · Computer Lab,English · Ayesha Khan,Urdu · Erum Shah,Mathematics · Bilal Ahmed,Physical Education · Imran Qureshi · Playground
+2,08:40–09:20,Computer Studies (continued),Mathematics · Bilal Ahmed,Social Studies · Gul Rukh,Science · Care Fernandes,Social Studies · Gul Rukh
+3,09:20–10:00,Mathematics · Bilal Ahmed,Science · Care Fernandes,Mathematics · Bilal Ahmed,Urdu · Erum Shah,Urdu · Erum Shah
+4,10:20–11:00,English · Ayesha Khan,Urdu · Erum Shah,English · Ayesha Khan,Islamic Studies · Imran Qureshi,Mathematics · Bilal Ahmed
+5,11:00–11:40,Science · Care Fernandes,Art · Hamza Noor,English · Ayesha Khan,English · Ayesha Khan,
+6,11:40–12:20,Islamic Studies · Imran Qureshi,Physical Education · Imran Qureshi · Playground,Science · Care Fernandes,,-
+7,12:20–13:00,Social Studies · Gul Rukh,,,,-
+
+Class: Grade 7 A,Morning shift
+Period,Time,Monday,Tuesday,Wednesday,Thursday,Friday
+1,08:00–08:40,Science · Care Fernandes,Computer Studies · Hamza Noor · Computer Lab,Mathematics · Bilal Ahmed,Social Studies · Gul Rukh,Mathematics · Bilal Ahmed
+2,08:40–09:20,Mathematics · Bilal Ahmed,Computer Studies (continued),Physical Education · Imran Qureshi · Playground,Mathematics · Bilal Ahmed,Science · Care Fernandes
+3,09:20–10:00,Urdu · Farhan Iqbal,Art · Hamza Noor,Islamic Studies · Imran Qureshi,Science · Care Fernandes,Urdu · Farhan Iqbal
+4,10:20–11:00,Physical Education · Imran Qureshi · Playground,Mathematics · Bilal Ahmed,Science · Care Fernandes,Urdu · Farhan Iqbal,English · Danish Ali
+5,11:00–11:40,Social Studies · Gul Rukh,Social Studies · Gul Rukh,English · Danish Ali,English · Danish Ali,Islamic Studies · Imran Qureshi
+6,11:40–12:20,English · Danish Ali,English · Danish Ali,Urdu · Farhan Iqbal,,-
+7,12:20–13:00,,,,,-
+
+Class: Grade 7 B,Morning shift
+Period,Time,Monday,Tuesday,Wednesday,Thursday,Friday
+1,08:00–08:40,,Urdu · Farhan Iqbal,Computer Studies · Hamza Noor · Computer Lab,Science · Care Fernandes,Science · Care Fernandes
+2,08:40–09:20,Physical Education · Imran Qureshi · Playground,Science · Care Fernandes,Computer Studies (continued),Social Studies · Gul Rukh,Urdu · Farhan Iqbal
+3,09:20–10:00,Science · Care Fernandes,Mathematics · Bilal Ahmed,Art · Hamza Noor,Physical Education · Imran Qureshi · Playground,Mathematics · Bilal Ahmed
+4,10:20–11:00,Urdu · Farhan Iqbal,Islamic Studies · Imran Qureshi,English · Danish Ali,Mathematics · Bilal Ahmed,Islamic Studies · Imran Qureshi
+5,11:00–11:40,Mathematics · Bilal Ahmed,English · Danish Ali,Mathematics · Bilal Ahmed,Urdu · Farhan Iqbal,English · Danish Ali
+6,11:40–12:20,Social Studies · Gul Rukh,Social Studies · Gul Rukh,,English · Danish Ali,-
+7,12:20–13:00,English · Danish Ali,,,,-
+
+Teacher: Ayesha Khan,Morning shift
+Period,Time,Monday,Tuesday,Wednesday,Thursday,Friday
+1,08:00–08:40,,English · Grade 6 B,,,
+2,08:40–09:20,,English · Grade 6 A,,,
+3,09:20–10:00,,English · Grade 6 A,,,
+4,10:20–11:00,English · Grade 6 B,,English · Grade 6 B,,
+5,11:00–11:40,English · Grade 6 A,,English · Grade 6 B,English · Grade 6 B,
+6,11:40–12:20,,,English · Grade 6 A,English · Grade 6 A,-
+7,12:20–13:00,,,,,-
+
+Teacher: Bilal Ahmed,Morning shift
+Period,Time,Monday,Tuesday,Wednesday,Thursday,Friday
+1,08:00–08:40,Mathematics · Grade 6 A,,Mathematics · Grade 7 A,Mathematics · Grade 6 B,Mathematics · Grade 7 A
+2,08:40–09:20,Mathematics · Grade 7 A,Mathematics · Grade 6 B,,Mathematics · Grade 7 A,
+3,09:20–10:00,Mathematics · Grade 6 B,Mathematics · Grade 7 B,Mathematics · Grade 6 B,,Mathematics · Grade 7 B
+4,10:20–11:00,,Mathematics · Grade 7 A,Mathematics · Grade 6 A,Mathematics · Grade 7 B,Mathematics · Grade 6 B
+5,11:00–11:40,Mathematics · Grade 7 B,,Mathematics · Grade 7 B,Mathematics · Grade 6 A,Mathematics · Grade 6 A
+6,11:40–12:20,,Mathematics · Grade 6 A,,,-
+7,12:20–13:00,,,,,-
+
+Teacher: Care Fernandes,Morning shift
+Period,Time,Monday,Tuesday,Wednesday,Thursday,Friday
+1,08:00–08:40,Science · Grade 7 A,Science · Grade 6 A,,Science · Grade 7 B,Science · Grade 7 B
+2,08:40–09:20,,Science · Grade 7 B,,Science · Grade 6 B,Science · Grade 7 A
+3,09:20–10:00,Science · Grade 7 B,Science · Grade 6 B,,Science · Grade 7 A,Science · Grade 6 A
+4,10:20–11:00,Science · Grade 6 A,,Science · Grade 7 A,,
+5,11:00–11:40,Science · Grade 6 B,,Science · Grade 6 A,,
+6,11:40–12:20,,,Science · Grade 6 B,,-
+7,12:20–13:00,,,,,-
+
+Teacher: Danish Ali,Morning shift
+Period,Time,Monday,Tuesday,Wednesday,Thursday,Friday
+1,08:00–08:40,,,,,
+2,08:40–09:20,,,,,
+3,09:20–10:00,,,,,
+4,10:20–11:00,,,English · Grade 7 B,,English · Grade 7 A
+5,11:00–11:40,,English · Grade 7 B,English · Grade 7 A,English · Grade 7 A,English · Grade 7 B
+6,11:40–12:20,English · Grade 7 A,English · Grade 7 A,,English · Grade 7 B,-
+7,12:20–13:00,English · Grade 7 B,,,,-
+
+Teacher: Erum Shah,Morning shift
+Period,Time,Monday,Tuesday,Wednesday,Thursday,Friday
+1,08:00–08:40,,,Urdu · Grade 6 B,,
+2,08:40–09:20,Urdu · Grade 6 A,,Urdu · Grade 6 A,,
+3,09:20–10:00,,,,Urdu · Grade 6 B,Urdu · Grade 6 B
+4,10:20–11:00,,Urdu · Grade 6 B,,Urdu · Grade 6 A,Urdu · Grade 6 A
+5,11:00–11:40,,,,,
+6,11:40–12:20,,,,,-
+7,12:20–13:00,,,,,-
+
+Teacher: Farhan Iqbal,Morning shift
+Period,Time,Monday,Tuesday,Wednesday,Thursday,Friday
+1,08:00–08:40,,Urdu · Grade 7 B,,,
+2,08:40–09:20,,,,,Urdu · Grade 7 B
+3,09:20–10:00,Urdu · Grade 7 A,,,,Urdu · Grade 7 A
+4,10:20–11:00,Urdu · Grade 7 B,,,Urdu · Grade 7 A,
+5,11:00–11:40,,,,Urdu · Grade 7 B,
+6,11:40–12:20,,,Urdu · Grade 7 A,,-
+7,12:20–13:00,,,,,-
+
+Teacher: Gul Rukh,Morning shift
+Period,Time,Monday,Tuesday,Wednesday,Thursday,Friday
+1,08:00–08:40,,,,Social Studies · Grade 7 A,Social Studies · Grade 6 A
+2,08:40–09:20,,,Social Studies · Grade 6 B,Social Studies · Grade 7 B,Social Studies · Grade 6 B
+3,09:20–10:00,,,Social Studies · Grade 6 A,,
+4,10:20–11:00,,Social Studies · Grade 6 A,,,
+5,11:00–11:40,Social Studies · Grade 7 A,Social Studies · Grade 7 A,,,
+6,11:40–12:20,Social Studies · Grade 7 B,Social Studies · Grade 7 B,,,-
+7,12:20–13:00,Social Studies · Grade 6 B,,,,-
+
+Teacher: Hamza Noor,Morning shift
+Period,Time,Monday,Tuesday,Wednesday,Thursday,Friday
+1,08:00–08:40,Computer Studies · Grade 6 B · Computer Lab,Computer Studies · Grade 7 A · Computer Lab,Computer Studies · Grade 7 B · Computer Lab,Computer Studies · Grade 6 A · Computer Lab,
+2,08:40–09:20,Computer Studies (continued),Computer Studies (continued),Computer Studies (continued),Computer Studies (continued),
+3,09:20–10:00,,Art · Grade 7 A,Art · Grade 7 B,Art · Grade 6 A,
+4,10:20–11:00,,,,,
+5,11:00–11:40,,Art · Grade 6 B,,,
+6,11:40–12:20,,,,,-
+7,12:20–13:00,,,,,-
+
+Teacher: Imran Qureshi,Morning shift
+Period,Time,Monday,Tuesday,Wednesday,Thursday,Friday
+1,08:00–08:40,,,Physical Education · Grade 6 A · Playground,,Physical Education · Grade 6 B · Playground
+2,08:40–09:20,Physical Education · Grade 7 B · Playground,,Physical Education · Grade 7 A · Playground,,Islamic Studies · Grade 6 A
+3,09:20–10:00,Physical Education · Grade 6 A · Playground,,Islamic Studies · Grade 7 A,Physical Education · Grade 7 B · Playground,
+4,10:20–11:00,Physical Education · Grade 7 A · Playground,Islamic Studies · Grade 7 B,,Islamic Studies · Grade 6 B,Islamic Studies · Grade 7 B
+5,11:00–11:40,,Islamic Studies · Grade 6 A,,,Islamic Studies · Grade 7 A
+6,11:40–12:20,Islamic Studies · Grade 6 B,Physical Education · Grade 6 B · Playground,,,-
+7,12:20–13:00,,,,,-
+
+Room: Computer Lab,Morning shift
+Period,Time,Monday,Tuesday,Wednesday,Thursday,Friday
+1,08:00–08:40,Computer Studies · Grade 6 B · Hamza Noor,Computer Studies · Grade 7 A · Hamza Noor,Computer Studies · Grade 7 B · Hamza Noor,Computer Studies · Grade 6 A · Hamza Noor,
+2,08:40–09:20,Computer Studies (continued),Computer Studies (continued),Computer Studies (continued),Computer Studies (continued),
+3,09:20–10:00,,,,,
+4,10:20–11:00,,,,,
+5,11:00–11:40,,,,,
+6,11:40–12:20,,,,,-
+7,12:20–13:00,,,,,-
+
+Room: Playground,Morning shift
+Period,Time,Monday,Tuesday,Wednesday,Thursday,Friday
+1,08:00–08:40,,,Physical Education · Grade 6 A · Imran Qureshi,,Physical Education · Grade 6 B · Imran Qureshi
+2,08:40–09:20,Physical Education · Grade 7 B · Imran Qureshi,,Physical Education · Grade 7 A · Imran Qureshi,,
+3,09:20–10:00,Physical Education · Grade 6 A · Imran Qureshi,,,Physical Education · Grade 7 B · Imran Qureshi,
+4,10:20–11:00,Physical Education · Grade 7 A · Imran Qureshi,,,,
+5,11:00–11:40,,,,,
+6,11:40–12:20,,Physical Education · Grade 6 B · Imran Qureshi,,,-
+7,12:20–13:00,,,,,-
+
+Master timetable,Morning shift
+Class,Mon 1,Mon 2,Mon 3,Mon 4,Mon 5,Mon 6,Mon 7,Tue 1,Tue 2,Tue 3,Tue 4,Tue 5,Tue 6,Tue 7,Wed 1,Wed 2,Wed 3,Wed 4,Wed 5,Wed 6,Wed 7,Thu 1,Thu 2,Thu 3,Thu 4,Thu 5,Thu 6,Thu 7,Fri 1,Fri 2,Fri 3,Fri 4,Fri 5
+Time,08:00–08:40,08:40–09:20,09:20–10:00,10:20–11:00,11:00–11:40,11:40–12:20,12:20–13:00,08:00–08:40,08:40–09:20,09:20–10:00,10:20–11:00,11:00–11:40,11:40–12:20,12:20–13:00,08:00–08:40,08:40–09:20,09:20–10:00,10:20–11:00,11:00–11:40,11:40–12:20,12:20–13:00,08:00–08:40,08:40–09:20,09:20–10:00,10:20–11:00,11:00–11:40,11:40–12:20,12:20–13:00,08:00–08:40,08:40–09:20,09:20–10:00,10:20–11:00,11:00–11:40
+6A,MATH BAH,URD ESH,PE IQU,SCI CFE,ENG AKH,,,SCI CFE,ENG AKH,ENG AKH,SST GRU,ISL IQU,MATH BAH,,PE IQU,URD ESH,SST GRU,MATH BAH,SCI CFE,ENG AKH,,COMP HNO,COMP HNO,ART HNO,URD ESH,MATH BAH,ENG AKH,,SST GRU,ISL IQU,SCI CFE,URD ESH,MATH BAH
+6B,COMP HNO,COMP HNO,MATH BAH,ENG AKH,SCI CFE,ISL IQU,SST GRU,ENG AKH,MATH BAH,SCI CFE,URD ESH,ART HNO,PE IQU,,URD ESH,SST GRU,MATH BAH,ENG AKH,ENG AKH,SCI CFE,,MATH BAH,SCI CFE,URD ESH,ISL IQU,ENG AKH,,,PE IQU,SST GRU,URD ESH,MATH BAH,
+7A,SCI CFE,MATH BAH,URD FIQ,PE IQU,SST GRU,ENG DAL,,COMP HNO,COMP HNO,ART HNO,MATH BAH,SST GRU,ENG DAL,,MATH BAH,PE IQU,ISL IQU,SCI CFE,ENG DAL,URD FIQ,,SST GRU,MATH BAH,SCI CFE,URD FIQ,ENG DAL,,,MATH BAH,SCI CFE,URD FIQ,ENG DAL,ISL IQU
+7B,,PE IQU,SCI CFE,URD FIQ,MATH BAH,SST GRU,ENG DAL,URD FIQ,SCI CFE,MATH BAH,ISL IQU,ENG DAL,SST GRU,,COMP HNO,COMP HNO,ART HNO,ENG DAL,MATH BAH,,,SCI CFE,SST GRU,PE IQU,MATH BAH,URD FIQ,ENG DAL,,SCI CFE,URD FIQ,MATH BAH,ISL IQU,ENG DAL
+6C,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+

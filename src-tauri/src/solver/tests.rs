@@ -403,6 +403,98 @@ fn a_bad_locked_card_is_reported_in_plain_english() {
     assert!(r.unplaced[0].message.contains("locked"));
 }
 
+fn lock_at(lesson: &str, day: u8, period: u8) -> PlacedCard {
+    PlacedCard { lesson_id: lesson.into(), number: 1, shift: "morning".into(), day, period, length: 1, room: None, locked: true }
+}
+
+#[test]
+fn two_locked_lessons_that_clash_name_each_other() {
+    let mut s = school(5, 5);
+    s.master.teachers.extend(["t", "u"].map(teacher));
+    s.master.classes.push(class("a"));
+    s.lessons = vec![lesson("l", &["t"], &["a"], 1, 1), lesson("m", &["u"], &["a"], 1, 1)];
+    // both locked on Monday period 1, for the same class
+    let r = run_with(&s, &[lock_at("l", 0, 1), lock_at("m", 0, 1)], Options::default());
+    assert_eq!(r.unplaced.len(), 1);
+    let msg = &r.unplaced[0].message;
+    assert!(msg.contains("cannot stay where it is") && msg.contains("clashes with the locked lesson") && msg.contains("Monday period 1"), "{msg}");
+    assert_eq!(r.locks_in_the_way.len(), 1);
+    assert_eq!(r.locks_in_the_way[0].when, "Monday period 1");
+    assert_eq!(r.locks_in_the_way[0].blocks, 1);
+}
+
+#[test]
+fn when_locks_alone_make_a_lesson_impossible_they_are_named() {
+    // One teacher, one day of two periods: two locked lessons take both, a third cannot go anywhere.
+    let mut s = school(2, 1);
+    s.master.teachers.push(teacher("t"));
+    s.master.classes.extend(["a", "b", "c"].map(class));
+    s.lessons = vec![lesson("p", &["t"], &["a"], 1, 1), lesson("q", &["t"], &["b"], 1, 1), lesson("r", &["t"], &["c"], 1, 1)];
+    let r = run_with(&s, &[lock_at("p", 0, 1), lock_at("q", 0, 2)], Options { time_limit: Duration::from_secs(2), ..Options::default() });
+    assert_eq!(r.unplaced.len(), 1);
+    assert_eq!(r.unplaced[0].lesson_id, "r");
+    let msg = &r.unplaced[0].message;
+    assert!(msg.contains("the locked lessons already take every time it could use"), "{msg}");
+    assert!(msg.contains("Monday period 1") && msg.contains("Monday period 2"), "{msg}");
+    assert!(r.unplaced[0].fix.contains("Unlock"));
+    let mut named: Vec<&str> = r.locks_in_the_way.iter().map(|b| b.sessions[0].lesson_id.as_str()).collect();
+    named.sort();
+    assert_eq!(named, ["p", "q"]);
+    assert!(r.locks_in_the_way.iter().all(|b| b.blocks == 1 && b.sessions[0].number == 1));
+    // unlocking them makes room: without locks only one of the three cannot fit, and no lock is blamed
+    let r = run_with(&s, &[], Options { time_limit: Duration::from_secs(2), ..Options::default() });
+    assert_eq!(r.unplaced.len(), 1);
+    assert!(r.locks_in_the_way.is_empty());
+    assert!(!r.unplaced[0].message.contains("ocked"));
+}
+
+#[test]
+fn a_lock_that_is_part_of_the_problem_is_mentioned() {
+    // The lock takes period 1; period 2 is free for only one of the two others.
+    let mut s = school(2, 1);
+    s.master.teachers.push(teacher("t"));
+    s.master.classes.extend(["a", "b", "c"].map(class));
+    s.lessons = vec![lesson("p", &["t"], &["a"], 1, 1), lesson("q", &["t"], &["b"], 1, 1), lesson("r", &["t"], &["c"], 1, 1)];
+    let r = run_with(&s, &[lock_at("p", 0, 1)], Options { time_limit: Duration::from_secs(2), ..Options::default() });
+    assert_eq!(r.unplaced.len(), 1);
+    let msg = &r.unplaced[0].message;
+    assert!(msg.contains("could not be fitted in") && msg.contains("Locked lessons in the way") && msg.contains("Monday period 1"), "{msg}");
+    assert_eq!(r.locks_in_the_way.len(), 1);
+    assert_eq!(r.locks_in_the_way[0].sessions[0].lesson_id, "p");
+}
+
+#[test]
+fn amber_slots_name_the_nice_to_have_rule_they_break() {
+    let mut s = school(5, 5);
+    s.master.teachers.extend(["t", "u"].map(teacher));
+    s.master.classes.extend(["a", "b", "c"].map(class));
+    s.lessons = vec![lesson("x", &["t"], &["a"], 1, 1), lesson("y", &["t"], &["b"], 1, 1), lesson("z", &["u"], &["c"], 1, 2)];
+    let at = |l: &str, number: u32, day: u8, period: u8| PlacedCard { lesson_id: l.into(), number, shift: "morning".into(), day, period, length: 1, room: None, locked: false };
+    s.timetable = Some(Timetable { cards: vec![at("x", 1, 0, 1), at("z", 1, 2, 1)] });
+    let slot = |s: &SchoolSetup, l: &str, n: u32, day: u8, period: u8| {
+        edit::slot_options(s, l, n).unwrap().into_iter().find(|o| o.day == day && o.period == period).unwrap()
+    };
+    // t teaches Monday period 1: period 2 is fine, period 3 leaves a free period in between
+    assert_eq!(slot(&s, "y", 1, 0, 2).status, "ok");
+    let o = slot(&s, "y", 1, 0, 3);
+    assert_eq!(o.status, "soft");
+    assert!(o.reasons.iter().any(|r| r == "t would have a free period in the middle of the day."), "{:?}", o.reasons);
+    // the rule switched off in Rules & limits: no longer amber
+    let mut off = s.clone();
+    off.settings.weights.teacher_gaps = 0;
+    assert_eq!(slot(&off, "y", 1, 0, 3).status, "ok");
+    // a second session of z the day before or after the first (Wednesday) is amber, Monday is fine
+    let o = slot(&s, "z", 2, 1, 1);
+    assert_eq!(o.status, "soft");
+    assert!(o.reasons.iter().any(|r| r.contains("is on Wednesday")), "{:?}", o.reasons);
+    assert_eq!(slot(&s, "z", 2, 3, 1).status, "soft");
+    assert_eq!(slot(&s, "z", 2, 0, 1).status, "ok");
+    // a clash stays red, with its reason
+    let o = slot(&s, "y", 1, 0, 1);
+    assert_eq!(o.status, "blocked");
+    assert!(o.reasons[0].contains("t is already teaching"), "{:?}", o.reasons);
+}
+
 #[test]
 fn cancel_stops_quickly_and_returns_what_was_built() {
     let s = latin(10);

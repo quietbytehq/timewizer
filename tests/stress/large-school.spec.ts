@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { cellsWhere, go, openApp, pickView, setDialog } from '../ui/helpers'
+import { go, openApp, openCells, pickView, setDialog } from '../ui/helpers'
 
 // A large double-shift school (120 classes, 220 teachers, 60 rooms, about 4,500 lesson sessions)
 // is made by `cargo run --release --bin stress -- --make-file`, opened through the real app, and
@@ -117,7 +117,7 @@ test('the large school opens, shows its Master view and can be edited by hand wi
 
   // pick up a lesson: the slots turn green / yellow / red. A full school has many lessons with nowhere
   // free to go, so try plain classroom lessons until one has a free (green) slot, like a person would.
-  const greenCells = cellsWhere(page, 'success').filter({ hasNot: page.locator('[draggable]') })
+  const greenCells = openCells(page) // green or amber (both may be dropped on)
   let pickedUp = false
   for (let i = 0; i < 40 && !pickedUp; i++) {
     const chip = page.locator('div[draggable="true"][title^="Mathematics "], div[draggable="true"][title^="English "], div[draggable="true"][title^="Urdu "]').nth(i * 7)

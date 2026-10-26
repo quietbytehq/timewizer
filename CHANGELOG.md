@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.2.0
+
+Backups
+- New **Backups** page: choose a backup folder (a USB stick, a shared drive, or a folder a cloud service keeps in sync; Timewizer itself stays offline).
+- **Back up now**, and an optional backup every time the school is saved.
+- Keeps the newest 10 backups of each school (the number can be changed). Backups are named after the school file with the date and time.
+- **Restore from backup** lists the backups and opens the chosen one as a new file; the open school is never replaced. Also on the welcome screen.
+- Clear messages when the backup folder is missing or cannot be written to. A failed automatic backup never stops the school from being saved.
+
+Start-up
+- A short start-up animation (under two seconds). A click or any key skips it. It is not shown when the computer is set to reduce motion, or when a school file is opened by double-click.
+- New **Preferences** page (School setup > Preferences) to switch the animation off.
+
+Undo, redo and change history
+- New **Change history** panel on the Timetable page: every timetable edit (move, place, swap, take off, lock, unlock, room change, improve, build) is listed in plain words with its time, newest first.
+- The Undo and Redo buttons say what they will undo or redo. They are also on the Build timetable page, and Ctrl+Z / Ctrl+Y work there too.
+- Building the timetable again is one step: one Undo brings back the whole previous timetable.
+
+Locks and conflict colours
+- When locked lessons stop others from being placed, the build page names them (with day and period, and how many sessions each is in the way of) and offers **Unlock these and build again**. Each unplaced session that is held up by locks says so, and names the locks.
+- Two locked lessons that clash now name each other.
+- Amber boxes while dragging now also cover the "nice to have" rules: a new free period in the middle of a teacher's or class's day, and two sessions of a lesson on days next to each other (when those rules are switched on in Rules & limits). Hovering a box says why.
+- Clearer words on the Timetable page: green free, amber allowed but not ideal, red a clash; a locked lesson's tooltip says to unlock it to move it.
+
+Substitutions (new)
+- New **Day to day > Substitutions** page: mark a teacher absent for one day, a date range, or only some periods (part-day).
+- For each lesson to cover, Timewizer suggests a teacher who is free (not teaching, not on time off, not away, not already covering), stays within their weekly maximum, teaches the same subject if possible, and has the fewest covers so far. Any other teacher can be chosen (with a warning that says which rule it breaks), or "No cover needed".
+- Cover counts per teacher for the school year, with a total and a **Reset counts** button (with a confirmation).
+- Cover sheet: one page per day as a print-ready PDF, or a CSV file.
+- Substitutions are saved in the school file and never change the timetable. A school file with substitutions uses file format 2 (Timewizer 0.1.x will say it needs a newer version instead of losing them); files without substitutions stay in format 1.
+
+Excel and CSV export
+- **Save Excel** and **Save CSV** on the Print & export page now hold exactly the timetables ticked under "What to print" (classes, teachers, rooms, master).
+- **Save CSV** writes the class, teacher, room and master timetables themselves (a block each, with the period times). The old one-line-per-session list is now **Save lesson list (CSV)**.
+- Period times show each day's own bell times where they differ (for example an early Friday), in Excel and CSV; the Master sheet shows the times in its headers.
+- Slightly wider columns in the Excel sheets.
+
 ## 0.1.3
 
 Large schools

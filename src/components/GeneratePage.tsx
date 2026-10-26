@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, CheckCircle2, Loader2, Sparkles, XCircle } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Loader2, Lock, Sparkles, Unlock, XCircle } from 'lucide-react'
 import { api, errText } from '@/lib/api'
-import type { GenProgress, ImproveReport, PlacedCard, SchoolSetup, SolveReport } from '@/lib/types'
+import type { GenProgress, ImproveReport, LockInTheWay, PlacedCard, SchoolSetup, SolveReport } from '@/lib/types'
 import { ImproveButton, QualityTable } from './Quality'
 import { inkOn } from '@/lib/color'
 import { Button, Card, inputCls, inputStyle } from '@/components/ui'
+import type { History } from '@/lib/history'
+import { UndoRedo } from './History'
 
-export function GeneratePage({ setup, onChange }: { setup: SchoolSetup; onChange: (s: SchoolSetup) => void }) {
+export function GeneratePage({ setup, onChange, history }:
+  { setup: SchoolSetup; onChange: (s: SchoolSetup, label?: string) => void; history: History }) {
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState<GenProgress>({ phase: 'placing', placed: 0, total: 0, fraction: 0 })
   const [improved, setImproved] = useState<ImproveReport | null>(null)
@@ -21,16 +24,30 @@ export function GeneratePage({ setup, onChange }: { setup: SchoolSetup; onChange
       api.onDone(r => {
         setRunning(false); setReport(r)
         // Keep the new timetable unless the person pressed Stop (then the old one stays).
-        if (!r.cancelled && r.placed > 0) onChange({ ...latest.current, timetable: r.timetable })
+        // The whole build is one step in the change history, so one Undo brings the old timetable back.
+        if (!r.cancelled && r.placed > 0) {
+          const locked = latest.current.timetable?.cards.filter(c => c.locked).length ?? 0
+          onChange({ ...latest.current, timetable: r.timetable },
+            `Built the timetable (${r.placed} of ${r.total} lesson sessions placed${locked ? `, ${locked} locked kept in place` : ''})`)
+        }
       }),
     ]
     return () => { subs.forEach(s => s.then(u => u()).catch(() => {})) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const start = async () => {
+  const start = async (s: SchoolSetup = setup) => {
     setError(null); setReport(null); setImproved(null); setProgress({ phase: 'placing', placed: 0, total: 0, fraction: 0 }); setRunning(true)
-    try { await api.startGenerate(setup) } catch (e) { setRunning(false); setError(errText(e)) }
+    try { await api.startGenerate(s) } catch (e) { setRunning(false); setError(errText(e)) }
+  }
+  // Unlocks the locked lessons that were in the way (one step in the change history), then builds again.
+  const unlockAndBuild = (locks: LockInTheWay[]) => {
+    const t = setup.timetable
+    if (!t) return
+    const key = new Set(locks.flatMap(l => l.sessions.map(r => `${r.lessonId}#${r.number}`)))
+    const s = { ...setup, timetable: { cards: t.cards.map(c => (key.has(`${c.lessonId}#${c.number}`) ? { ...c, locked: false } : c)) } }
+    onChange(s, `Unlocked ${locks.length === 1 ? `${locks[0].title} (${locks[0].when}), which was` : `${locks.length} lessons that were`} in the way`)
+    start(s)
   }
   const improving = progress.phase === 'improving'
   const pct = improving ? Math.round(progress.fraction * 100) : progress.total ? Math.round((progress.placed / progress.total) * 100) : 0
@@ -51,10 +68,11 @@ export function GeneratePage({ setup, onChange }: { setup: SchoolSetup; onChange
         <div className="flex flex-wrap items-center gap-4">
           {running
             ? <Button kind="danger" onClick={() => api.cancelGenerate()}><XCircle size={16} /> Stop</Button>
-            : <Button kind="primary" onClick={start}><Sparkles size={16} /> {setup.timetable ? 'Build again' : 'Build timetable'}</Button>}
+            : <Button kind="primary" onClick={() => start()}><Sparkles size={16} /> {setup.timetable ? 'Build again' : 'Build timetable'}</Button>}
           {!running && setup.timetable && setup.timetable.cards.length > 0 && (
-            <ImproveButton setup={setup} onTimetable={t => onChange({ ...latest.current, timetable: t })} onResult={setImproved} />
+            <ImproveButton setup={setup} onTimetable={t => onChange({ ...latest.current, timetable: t }, 'Improved the quality of the timetable')} onResult={setImproved} />
           )}
+          {!running && <UndoRedo history={history} />}
           {running && (
             <div className="min-w-[240px] flex-1" aria-live="polite">
               <div className="mb-1 flex items-center gap-2 text-sm font-semibold">
@@ -71,7 +89,7 @@ export function GeneratePage({ setup, onChange }: { setup: SchoolSetup; onChange
         {error && <p role="alert" className="mt-3 text-sm font-medium" style={{ color: 'var(--danger)' }}>{error}</p>}
       </Card>
 
-      {report && <ReportView report={report} />}
+      {report && <ReportView report={report} onUnlock={unlockAndBuild} />}
       {improved && (
         <Card><QualityTable before={improved.qualityBefore} after={improved.qualityAfter} /></Card>
       )}
@@ -80,7 +98,7 @@ export function GeneratePage({ setup, onChange }: { setup: SchoolSetup; onChange
   )
 }
 
-function ReportView({ report }: { report: SolveReport }) {
+function ReportView({ report, onUnlock }: { report: SolveReport; onUnlock: (locks: LockInTheWay[]) => void }) {
   const full = report.unplaced.length === 0 && !report.cancelled
   return (
     <>
@@ -119,6 +137,30 @@ function ReportView({ report }: { report: SolveReport }) {
       )}
       {!report.cancelled && report.qualityBefore.penalty !== report.qualityAfter.penalty && (
         <Card><QualityTable before={report.qualityBefore} after={report.qualityAfter} /></Card>
+      )}
+      {!report.cancelled && (report.locksInTheWay?.length ?? 0) > 0 && (
+        <Card>
+          <div className="flex gap-3" data-testid="locks-in-the-way">
+            <Lock size={20} className="mt-0.5 shrink-0" style={{ color: 'var(--warning)' }} />
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="font-semibold">
+                {report.locksInTheWay.length === 1 ? 'A locked lesson is' : `${report.locksInTheWay.length} locked lessons are`} stopping other lessons from being placed
+              </div>
+              <ul className="space-y-1 text-sm">
+                {report.locksInTheWay.map((l, i) => (
+                  <li key={i} className="flex flex-wrap gap-x-2">
+                    <span className="font-semibold">{l.title}</span>
+                    <span style={{ color: 'var(--muted)' }}>{l.when} · in the way of {l.blocks} {l.blocks === 1 ? 'session' : 'sessions'}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                Locked lessons never move when the timetable is built. Unlock them so they can move, then build again.
+              </p>
+              <Button onClick={() => onUnlock(report.locksInTheWay)}><Unlock size={16} /> Unlock {report.locksInTheWay.length === 1 ? 'it' : 'these'} and build again</Button>
+            </div>
+          </div>
+        </Card>
       )}
       {report.unplaced.map((u, i) => (
         <Card key={i}>

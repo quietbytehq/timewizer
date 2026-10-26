@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { buildTimetable, cellOf, cellsWhere, dropOn, go, lessonChip, openTimetable, pickEntity, pickUp, pickView, places, sampleSchool } from './helpers'
+import { buildTimetable, cellOf, cellsWhere, dropOn, openCells, go, lessonChip, openTimetable, pickEntity, pickUp, pickView, places, sampleSchool } from './helpers'
 
 test.describe('timetable views and editing', () => {
   test('class, teacher, room and master views show the built timetable', async ({ page }) => {
@@ -34,14 +34,14 @@ test.describe('timetable views and editing', () => {
     expect(errors).toEqual([])
   })
 
-  test('dragging a lesson to a green slot moves it; undo and redo bring it back and forth', async ({ page }) => {
+  test('dragging a lesson to a free (green or amber) slot moves it; undo and redo bring it back and forth', async ({ page }) => {
     await sampleSchool(page)
     await openTimetable(page)
     await pickEntity(page, /Grade 6 A/)
     const original = await places(page, 'Science', 4)
 
     await pickUp(page, lessonChip(page, 'Science'))
-    const empty = cellsWhere(page, 'success').filter({ hasNot: page.locator('[draggable]') })
+    const empty = openCells(page) // green or amber: both may be dropped on
     await expect(empty.first()).toBeVisible()
     await dropOn(page, empty.first())
 

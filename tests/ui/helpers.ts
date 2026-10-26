@@ -10,11 +10,12 @@ export const SHOTS = process.env.UPDATE_SHOTS ? path.resolve('docs/screenshots')
 
 export type Theme = 'light' | 'dark'
 
-/** Opens the app in the browser with the Tauri shell replaced by the Rust bridge. */
-export async function openApp(page: Page, theme: Theme = 'light') {
+/** Opens the app in the browser with the Tauri shell replaced by the Rust bridge. The computer is
+ *  set to "reduce motion" (so the start-up animation stays away) unless `motion` is true. */
+export async function openApp(page: Page, theme: Theme = 'light', { motion = false } = {}) {
   await page.addInitScript({ path: 'tests/ui/tauri-shim.js' })
   await page.addInitScript(`try { if (!localStorage.getItem('timewizer-theme')) localStorage.setItem('timewizer-theme', '${theme}') } catch {}`)
-  await page.emulateMedia({ colorScheme: theme })
+  await page.emulateMedia({ colorScheme: theme, reducedMotion: motion ? 'no-preference' : 'reduce' })
   const errors: string[] = []
   page.on('pageerror', e => errors.push(e.message))
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()) })
@@ -98,7 +99,7 @@ export async function openTimetable(page: Page) {
 /** A lesson chip on the timetable grid, by its subject short name and day/period (class view). */
 export const chips = (page: Page) => page.locator('[draggable="true"], [draggable="false"]')
 
-/** Real mouse drag of one element onto another, waiting for the green/yellow/red highlighting. */
+/** Real mouse drag of one element onto another, waiting for the green/amber/red highlighting. */
 export async function dragTo(page: Page, from: Locator, to: Locator, { waitHighlight = true } = {}) {
   const a = (await from.boundingBox())!
   await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2)
@@ -118,8 +119,12 @@ export function cellOf(el: Locator) {
   })
 }
 
-/** Highlighted cells while dragging: ok (green), soft (yellow), blocked (red). */
+/** Highlighted cells while dragging: ok (green), soft (amber), blocked (red). */
 export const cellsWhere = (page: Page, kind: 'success' | 'warning' | 'danger') => page.locator(`td div:not([draggable])[style*="outline"][style*="var(--${kind})"]`)
+
+/** Empty boxes a dragged lesson may be dropped on (green or amber). */
+export const openCells = (page: Page) =>
+  page.locator('td div:not([draggable])[style*="outline"]:is([style*="var(--success)"], [style*="var(--warning)"])').filter({ hasNot: page.locator('[draggable]') })
 
 /** The lesson chip on a grid with a given subject name, nth occurrence. */
 export const lessonChip = (page: Page, subject: string, nth = 0) => page.locator(`div[draggable][title^="${subject} "]`).nth(nth)

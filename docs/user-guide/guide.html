@@ -53,8 +53,9 @@ th { background: var(--cream); }
   <h3>Windows</h3>
   <p>Double-click the <b>setup .exe</b> file and follow the steps. Then open <b>Timewizer</b> from the Start menu. If Windows shows <b>"Windows protected your PC"</b>, press <b>More info</b>, then <b>Run anyway</b> (the installer is not signed yet). School IT staff can use the <b>.msi</b> file instead. Double-clicking a saved school file (<kbd>.twz</kbd>) opens it in Timewizer.</p>
   <h3>Ubuntu</h3>
-  <p>On Ubuntu, double-click the <b>.deb</b> file and press Install (or run <kbd>sudo apt install ./Timewizer_0.1.3_amd64.deb</kbd> in a terminal). Then open <b>Timewizer</b> from the applications menu.</p>
+  <p>On Ubuntu, double-click the <b>.deb</b> file and press Install (or run <kbd>sudo apt install ./Timewizer_0.2.0_amd64.deb</kbd> in a terminal). Then open <b>Timewizer</b> from the applications menu.</p>
   <p>You can also use the <b>AppImage</b> file instead: right-click it, choose Properties, allow it to run as a program, then double-click it. Nothing is installed.</p>
+  <p>When Timewizer starts, a short animation plays (under two seconds). Click or press any key to skip it. To switch it off, open a school and go to <b>School setup &gt; Preferences</b>. It is never shown when you open a school file by double-clicking it, or when the computer is set to reduce motion.</p>
   <h3>Start a school</h3>
   <ol>
     <li>Type the school's name and press <b>Create school</b>. Choose where to keep the school file.</li>
@@ -131,14 +132,15 @@ th { background: var(--cream); }
   <div class="eyebrow">Using the timetable</div>
   <h2>6. Looking at and changing the timetable</h2>
   <p>Open <b>Timetable</b>. Choose <b>Class</b>, <b>Teacher</b>, <b>Room</b> or <b>Master</b> (all classes together; use the zoom to make it bigger).</p>
-  <figure><img src="../screenshots/light/18-timetable-dragging.png" alt="" style="max-height: 100mm; object-fit: cover; object-position: top;"><figcaption>Dragging a lesson. Green boxes are free, yellow is possible but not ideal, red is blocked.</figcaption></figure>
+  <figure><img src="../screenshots/light/18-timetable-dragging.png" alt="" style="max-height: 100mm; object-fit: cover; object-position: top;"><figcaption>Dragging a lesson. Green boxes are free, amber is allowed but not ideal, red is a clash.</figcaption></figure>
   <ul>
-    <li><b>Move</b>: drag a lesson to a green or yellow box. Hover a red box to read why it is blocked.</li>
+    <li><b>Move</b>: drag a lesson to a green or amber box. Hover any box to read why: red means a clash (the teacher, class or room is busy, or the teacher is not available); amber means it is allowed but breaks a "nice to have" rule from Rules &amp; limits (an "avoid" time, a free period in the middle of someone's day, or two sessions of a lesson on days next to each other).</li>
     <li><b>Swap</b>: drop a lesson on another one. If the swap works, that lesson lights up green.</li>
-    <li><b>Lock</b>: hover a lesson and press the padlock. Locked lessons stay where they are, even when you build again.</li>
+    <li><b>Lock</b>: hover a lesson and press the padlock. A locked lesson shows a small padlock and cannot be dragged until you unlock it. Locked lessons stay exactly where they are when you build again, and the locks are saved in the school file.</li>
     <li><b>Room</b>: hover a lesson and press the door to choose its room.</li>
     <li><b>Take off</b>: drag a lesson to the box at the bottom; drag it back to place it again.</li>
-    <li><b>Undo / Redo</b>: the buttons at the top, or <kbd>Ctrl</kbd>+<kbd>Z</kbd> and <kbd>Ctrl</kbd>+<kbd>Y</kbd>.</li>
+    <li><b>Undo / Redo</b>: the buttons at the top, or <kbd>Ctrl</kbd>+<kbd>Z</kbd> and <kbd>Ctrl</kbd>+<kbd>Y</kbd> (on the Timetable and Build timetable pages). Hover the button to see what it will undo. Building the timetable again counts as one change, so one Undo brings the old timetable back.</li>
+    <li><b>Change history</b>: below the timetable, a list of your changes, newest first, with the time and what was done (for example "Moved Science (6A) from Monday period 2 to Tuesday period 4"). Undone changes are crossed out until you redo them or make a new change. The list starts empty each time you open the school.</li>
     <li><b>Improve quality</b>: tidies the timetable after your changes. Locked lessons never move.</li>
   </ul>
   <div class="tip"><b>If you change lessons or time off</b> after building, the page warns that the timetable may be out of date. Build again; your locked lessons stay put.</div>
@@ -153,26 +155,61 @@ th { background: var(--cream); }
     <tr><th>Button</th><th>What you get</th></tr>
     <tr><td>Save PDF</td><td>One file, one page for each timetable, with your school's name and logo. Best for printing.</td></tr>
     <tr><td>Save pictures (PNG)</td><td>One picture for each timetable, in a folder you choose. Good for WhatsApp or e-mail.</td></tr>
-    <tr><td>Save Excel</td><td>A workbook with the master timetable, and sheets for classes, teachers and rooms, plus a list of every lesson session.</td></tr>
-    <tr><td>Save CSV</td><td>A plain list with one line for each lesson session, for other programs.</td></tr>
+    <tr><td>Save Excel</td><td>A workbook with the timetables you ticked: the master timetable, and sheets for classes, teachers and rooms, plus a list of every lesson session. Each period shows its times; if a day has different bell times (for example Friday), they are shown too. Excel does not need to be installed.</td></tr>
+    <tr><td>Save CSV</td><td>The timetables you ticked in one CSV file (opens in Excel or LibreOffice): a block for each class, teacher or room, and the master timetable, with the period times.</td></tr>
+    <tr><td>Save lesson list (CSV)</td><td>A plain list with one line for each lesson session, for sorting, filtering or other programs.</td></tr>
   </table>
   <div class="tip"><b>Tip:</b> the master timetable has many small boxes. It is easiest to read on A3.</div>
 </section>
 
 <section>
+  <div class="eyebrow">Day to day</div>
+  <h2>8. Substitutions (cover for absent teachers)</h2>
+  <p>Open <b>Day to day &gt; Substitutions</b>. The timetable itself is never changed: absences and covers are kept separately, in the school file. Save the school when you are done.</p>
+  <ol>
+    <li><b>Add an absence</b>: choose the teacher, the first and last day (the same day for one day), and <b>The whole day</b> or <b>Only some periods</b> (tick them; they count on every day of the absence). A note is optional. To change an absence, remove it and add it again; removing it also removes its cover decisions.</li>
+    <li>Choose the <b>date</b> (or click an absence). The table lists each lesson the absent teachers would teach that day: period and times, class, subject, absent teacher and room.</li>
+    <li>For each lesson, press the orange button to <b>accept the suggestion</b>, <b>choose another teacher</b> from the list, or press <b>No cover needed</b> (for example, the class is out). <b>Clear</b> undoes the decision.</li>
+  </ol>
+  <h3>How the suggestion is chosen</h3>
+  <ul>
+    <li>Only teachers who are <b>free</b> then: in that shift, not teaching, not on time off, not away themselves, not already covering another lesson, and not going over their <b>weekly maximum</b> (lessons plus covers that week).</li>
+    <li>Teachers of the <b>same subject</b> come first, then the others. Within each group, the one with the <b>fewest covers</b> so far comes first.</li>
+    <li>You can still choose a teacher who is not free. The page then shows a red warning that says why (for example "is teaching English (Grade 6 A) then").</li>
+  </ul>
+  <h3>Cover counts and the cover sheet</h3>
+  <ul>
+    <li><b>Cover counts</b> shows the total and the covers per teacher for the school year. <b>Reset counts…</b> (after a confirmation) starts counting again from today, for example at the start of a new school year. Earlier covers stay on the cover sheets.</li>
+    <li><b>Cover sheet</b>: choose the dates and press <b>Save PDF…</b> (one page per day, ready to print) or <b>Save CSV…</b> (for Excel).</li>
+  </ul>
+</section>
+
+<section>
   <div class="eyebrow">Help</div>
-  <h2>8. If something goes wrong</h2>
+  <h2>9. If something goes wrong</h2>
   <table>
     <tr><th>What you see</th><th>What to do</th></tr>
     <tr><td>"Please fix the problems on the Check page first"</td><td>Open <b>Check before building</b>. Each problem says how to fix it.</td></tr>
     <tr><td>Some lesson sessions "could not be fitted in"</td><td>Read the reason under each one. Usually a teacher or class has too little free time. Free up time, or switch on <i>bending a few rules</i> in Rules &amp; limits.</td></tr>
     <tr><td>A red box when you drag</td><td>Hover it. It names the teacher, class or room that is in the way.</td></tr>
+    <tr><td>"Locked lessons are stopping other lessons from being placed"</td><td>The build page lists the locked lessons that are in the way. Press <b>Unlock these and build again</b>, or unlock some of them on the Timetable page.</td></tr>
     <tr><td>Import says a row could not be imported</td><td>The message gives the file, the row and the reason. Fix that row and import again.</td></tr>
+    <tr><td>"The backup folder could not be found"</td><td>The USB stick or network drive is not connected, or the folder was moved. Connect it, or open <b>Backups</b> and choose the folder again. Your school is still saved in its own file.</td></tr>
+    <tr><td>"Not allowed to save files in the backup folder"</td><td>The folder is read-only for you. Choose another folder in <b>Backups</b>.</td></tr>
     <tr><td>Names print as "?" in the PDF</td><td>The PDF supports Western letters only. Pictures (PNG) and Excel work with any letters.</td></tr>
   </table>
+  <h3>Backups</h3>
+  <p>Open <b>Backups</b> (under School setup) and press <b>Choose folder…</b>. Pick a USB stick, a shared drive, or a folder that OneDrive, Google Drive or Dropbox keeps in sync; Timewizer itself never goes online. Then:</p>
+  <ul>
+    <li><b>Back up now</b> saves a copy of the school as it is on screen. Switch on <b>Back up every time I save</b> to get a copy with every save.</li>
+    <li>Copies are named after the school file, with the date and time, for example <i>Riverside backup 2026-10-23 14-05-09.twz</i>. Timewizer keeps the newest 10 for each school (you can change the number) and removes older ones. Other files in the folder are never touched.</li>
+    <li><b>Restore from backup</b> lists the copies, newest first. <b>Open as new file…</b> asks for a new file name and opens the copy there. The school you have open is never replaced. When no school is open, the welcome screen has <b>Restore from backup…</b> too.</li>
+    <li>The backup settings belong to the computer, not the school file.</li>
+  </ul>
   <h3>Good habits</h3>
   <ul>
     <li>Save often, and use <b>Save as…</b> to keep a copy before big changes.</li>
+    <li>Choose a backup folder on another drive, and switch on the automatic backup.</li>
     <li>Lock the lessons you are happy with before building again.</li>
     <li>Build with a longer "time spent improving" (Rules &amp; limits) for the final timetable.</li>
   </ul>

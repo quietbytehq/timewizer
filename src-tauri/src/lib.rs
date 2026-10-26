@@ -1,4 +1,5 @@
 mod access;
+mod backup;
 mod check;
 mod copy;
 mod db;
@@ -11,6 +12,7 @@ mod master;
 mod model;
 mod settings;
 mod solver;
+mod substitutions;
 #[cfg(any(test, feature = "uitest"))]
 pub mod stress;
 
@@ -19,7 +21,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::Arc;
 use access::Approved;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
 #[cfg(feature = "uitest")]
@@ -66,22 +68,61 @@ fn open_school(path: String, cur: State<Current>, ok: State<Approved>) -> Result
     Ok(Opened { path: p.to_string_lossy().into(), setup })
 }
 
+/// Saves the school, then makes the automatic backup if it is switched on. `stamp` is the local
+/// date and time for the backup's name (see `backup`).
 #[tauri::command(async)]
-fn save_school(setup: SchoolSetup, cur: State<Current>) -> Result<(), String> {
+fn save_school(setup: SchoolSetup, stamp: Option<String>, cur: State<Current>, prefs: State<backup::PrefsStore>) -> Result<backup::SaveOutcome, String> {
     let p = cur.0.lock().unwrap().clone().ok_or("No school is open.")?;
-    db::save(&p, &setup)
+    db::save(&p, &setup)?;
+    Ok(prefs.after_save(&p, &setup, stamp.as_deref()))
 }
 
 /// Writes a copy to a new file and makes that file the current one.
 #[tauri::command(async)]
-fn save_school_as(path: String, setup: SchoolSetup, cur: State<Current>, ok: State<Approved>) -> Result<String, String> {
+fn save_school_as(path: String, setup: SchoolSetup, stamp: Option<String>, cur: State<Current>, ok: State<Approved>, prefs: State<backup::PrefsStore>) -> Result<backup::SaveOutcome, String> {
     let p = with_ext(ok.check(&path)?.to_string_lossy().into());
     if p.exists() {
         std::fs::remove_file(&p).map_err(|e| format!("Could not replace the existing file: {e}"))?;
     }
     db::save(&p, &setup)?;
     *cur.0.lock().unwrap() = Some(p.clone());
-    Ok(p.to_string_lossy().into())
+    Ok(prefs.after_save(&p, &setup, stamp.as_deref()))
+}
+
+#[tauri::command(async)]
+fn get_preferences(prefs: State<backup::PrefsStore>) -> backup::Preferences {
+    prefs.get()
+}
+
+#[tauri::command(async)]
+fn set_backup_prefs(backup: backup::BackupPrefs, prefs: State<backup::PrefsStore>, ok: State<Approved>) -> Result<backup::Preferences, String> {
+    prefs.set_backup(backup, |f| ok.folder_allowed(f))
+}
+
+#[tauri::command(async)]
+fn set_splash(on: bool, prefs: State<backup::PrefsStore>) -> Result<backup::Preferences, String> {
+    prefs.set_splash(on)
+}
+
+#[tauri::command(async)]
+fn back_up_now(setup: SchoolSetup, stamp: String, cur: State<Current>, prefs: State<backup::PrefsStore>) -> Result<String, String> {
+    let current = cur.0.lock().unwrap().clone();
+    prefs.back_up_now(current.as_deref(), &setup, &stamp)
+}
+
+#[tauri::command(async)]
+fn list_backups(prefs: State<backup::PrefsStore>) -> Result<Vec<backup::BackupEntry>, String> {
+    prefs.list()
+}
+
+/// Copies a backup to a new file (chosen in a save dialog), and opens that new file.
+#[tauri::command(async)]
+fn restore_backup(backup: String, path: String, cur: State<Current>, ok: State<Approved>, prefs: State<backup::PrefsStore>) -> Result<Opened, String> {
+    let target = with_ext(ok.check(&path)?.to_string_lossy().into());
+    let current = cur.0.lock().unwrap().clone();
+    let setup = prefs.restore(std::path::Path::new(&backup), &target, current.as_deref())?;
+    *cur.0.lock().unwrap() = Some(target.clone());
+    Ok(Opened { path: target.to_string_lossy().into(), setup })
 }
 
 #[tauri::command]
@@ -164,8 +205,52 @@ fn export_csv(setup: SchoolSetup, path: String, ok: State<Approved>) -> Result<(
 }
 
 #[tauri::command(async)]
-fn export_excel(setup: SchoolSetup, path: String, ok: State<Approved>) -> Result<(), String> {
-    export::write_excel(&setup, &ok.check(&path)?)
+fn cover_day(setup: SchoolSetup, date: String) -> Result<substitutions::CoverDay, String> {
+    substitutions::cover_day(&setup, &date)
+}
+
+#[tauri::command(async)]
+fn cover_counts(setup: SchoolSetup) -> substitutions::CoverCounts {
+    substitutions::cover_counts(&setup)
+}
+
+#[tauri::command(async)]
+fn reset_cover_counts(setup: SchoolSetup, today: String) -> Result<substitutions::Substitutions, String> {
+    substitutions::parse_date(&today).ok_or("That is not a date.")?;
+    let mut sub = setup.substitutions;
+    substitutions::reset_counts(&mut sub, &today, &setup.academic_year);
+    Ok(sub)
+}
+
+#[tauri::command(async)]
+fn check_absence(setup: SchoolSetup, absence: substitutions::Absence) -> Result<(), String> {
+    substitutions::check_absence(&setup, &absence)
+}
+
+#[tauri::command(async)]
+fn cover_sheet(setup: SchoolSetup, from: String, to: String) -> Result<Vec<substitutions::SheetDay>, String> {
+    substitutions::cover_sheet(&setup, &from, &to)
+}
+
+#[tauri::command(async)]
+fn export_cover_csv(setup: SchoolSetup, from: String, to: String, path: String, ok: State<Approved>) -> Result<(), String> {
+    let path = ok.check(&path)?;
+    std::fs::write(&path, substitutions::cover_sheet_csv(&setup, &from, &to)?).map_err(|e| format!("Could not save the file: {e}"))
+}
+
+/// `selection`: what is ticked on the Print & export page (`None` = everything).
+#[tauri::command(async)]
+fn export_excel(setup: SchoolSetup, path: String, selection: Option<export::ExportSelection>, ok: State<Approved>) -> Result<(), String> {
+    let sel = selection.unwrap_or_else(|| export::ExportSelection::everything(&setup));
+    export::write_excel(&setup, &ok.check(&path)?, &sel)
+}
+
+/// The chosen class, teacher, room and master timetables as one CSV file.
+#[tauri::command(async)]
+fn export_timetables_csv(setup: SchoolSetup, path: String, selection: Option<export::ExportSelection>, ok: State<Approved>) -> Result<(), String> {
+    let path = ok.check(&path)?;
+    let sel = selection.unwrap_or_else(|| export::ExportSelection::everything(&setup));
+    std::fs::write(&path, export::timetables_csv(&setup, &sel)?).map_err(|e| format!("Could not save the file: {e}"))
 }
 
 /// Saves a file the front end made (PDF, PNG). The bytes arrive as base64 text.
@@ -268,6 +353,13 @@ pub fn run() {
         .manage(Current::default())
         .manage(Approved::default())
         .manage(jobs::Jobs::default())
+        .setup(|app| {
+            // This computer's preferences (the backup folder): kept with the program's settings,
+            // not in any school file.
+            let dir = app.path().app_config_dir().unwrap_or_else(|_| std::env::temp_dir().join("timewizer"));
+            app.manage(backup::PrefsStore::new(dir.join("preferences.json")));
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             create_school,
             open_school,
@@ -282,6 +374,7 @@ pub fn run() {
             cancel_generate,
             export_csv,
             export_excel,
+            export_timetables_csv,
             write_file,
             read_file_base64,
             plan_copy_lessons,
@@ -294,7 +387,19 @@ pub fn run() {
             write_template,
             startup_file,
             pick_open,
-            pick_save
+            pick_save,
+            get_preferences,
+            set_backup_prefs,
+            set_splash,
+            back_up_now,
+            list_backups,
+            restore_backup,
+            cover_day,
+            cover_counts,
+            check_absence,
+            reset_cover_counts,
+            cover_sheet,
+            export_cover_csv
         ])
         .run(tauri::generate_context!())
         .expect("error while running Timewizer");

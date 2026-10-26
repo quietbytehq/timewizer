@@ -88,6 +88,19 @@
   </requires>
 
   <releases>
+    <release version="0.2.0" date="2026-10-25">
+      <description>
+        <p>Backups, substitutions and safer editing.</p>
+        <ul>
+          <li>Backups to a folder of your choice: back up now or on every save, keep the newest copies, restore as a new file</li>
+          <li>Teacher substitutions: absences for days or single periods, suggested cover teachers, cover counts and a printable cover sheet</li>
+          <li>A change history for timetable edits, with undo and redo</li>
+          <li>Locked lessons that stop a build are named, and drag colours explain every rule</li>
+          <li>Excel and CSV export of the chosen class, teacher, room and master timetables, with each day's times</li>
+          <li>A short start-up animation that can be switched off</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.3" date="2026-10-19">
       <description>
         <p>Much faster for very large schools, and a better snap icon.</p>

@@ -1,8 +1,52 @@
-//! Export (milestone 9): the timetable as a flat list (CSV) and as an Excel workbook.
-//! PDF and PNG are drawn by the front end (see src/lib/print).
-use crate::model::SchoolSetup;
+//! Export (milestone 9, 0.2.0 stage 6): the timetable as a flat list (CSV), as timetables in a
+//! CSV file, and as an Excel workbook. PDF and PNG are drawn by the front end (see src/lib/print).
+//! Excel is written directly (rust_xlsxwriter), so Excel does not need to be installed.
+use crate::model::{SchoolSetup, Shift};
 use rust_xlsxwriter::{Color, Format, FormatAlign, FormatBorder, Workbook, Worksheet};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+
+/// What to export, as chosen on the Print & export page (ids). `None` = everything.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ExportSelection {
+    pub classes: Vec<String>,
+    pub teachers: Vec<String>,
+    pub rooms: Vec<String>,
+    pub master: bool,
+}
+
+impl ExportSelection {
+    pub fn everything(s: &SchoolSetup) -> Self {
+        ExportSelection {
+            classes: s.master.classes.iter().map(|x| x.id.clone()).collect(),
+            teachers: s.master.teachers.iter().map(|x| x.id.clone()).collect(),
+            rooms: s.master.rooms.iter().map(|x| x.id.clone()).collect(),
+            master: true,
+        }
+    }
+    fn is_empty(&self) -> bool {
+        self.classes.is_empty() && self.teachers.is_empty() && self.rooms.is_empty() && !self.master
+    }
+}
+
+/// "Mon" from "Monday".
+fn short_day(name: &str) -> String {
+    name.chars().take(3).collect()
+}
+
+/// The bell times of period `p` (0-based): the first working day's, then any day that differs,
+/// for example "08:00–08:40" and "Fri 08:00–08:35".
+fn period_times(s: &SchoolSetup, sh: &Shift, days: &[usize], p: usize) -> Vec<String> {
+    let at = |d: usize| sh.days[d].get(p).map(|t| format!("{}–{}", t.start, t.end));
+    let Some(first) = days.iter().find_map(|&d| at(d)) else { return vec![] };
+    let mut out = vec![first.clone()];
+    for &d in days {
+        if let Some(t) = at(d).filter(|t| *t != first) {
+            out.push(format!("{} {t}", short_day(&s.days[d].name)));
+        }
+    }
+    out
+}
 
 /// One lesson session on the timetable, with names instead of ids.
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -153,13 +197,10 @@ impl Grid<'_> {
         let nodash = Format::new().set_border(FormatBorder::Thin).set_background_color(Color::RGB(0xDDDDDD)).set_align(FormatAlign::Center).set_font_color(Color::RGB(0x888888));
         for p in 0..periods {
             let r = top + 2 + p as u32;
-            let t = days.first().and_then(|&d| sh.days[d].get(p));
-            let side_text = match t {
-                Some(t) => format!("{}\n{}–{}", p + 1, t.start, t.end),
-                None => format!("{}", p + 1),
-            };
+            let times = period_times(self.s, sh, &days, p);
+            let side_text = std::iter::once((p + 1).to_string()).chain(times.iter().cloned()).collect::<Vec<_>>().join("\n");
             x(ws.write_string_with_format(r, 0, side_text, &side))?;
-            ws.set_row_height(r, 44).map_err(|e| e.to_string())?;
+            ws.set_row_height(r, 44f64.max(15.0 * (times.len() + 1) as f64)).map_err(|e| e.to_string())?;
             for (c, &d) in days.iter().enumerate() {
                 let col = c as u16 + 1;
                 if p >= sh.days[d].len() {
@@ -181,16 +222,145 @@ impl Grid<'_> {
             }
         }
         for c in 0..=days.len() as u16 {
-            ws.set_column_width(c, if c == 0 { 14 } else { 22 }).map_err(|e| e.to_string())?;
+            ws.set_column_width(c, if c == 0 { 17 } else { 24 }).map_err(|e| e.to_string())?;
         }
         Ok(top + 2 + periods as u32 + 2)
     }
 }
 
-pub fn write_excel(s: &SchoolSetup, path: &std::path::Path) -> Result<(), String> {
+/// The class, teacher and room timetables chosen, in the order of the lists, with the shifts each
+/// one has lessons in: (kind 0 class / 1 teacher / 2 room, name, shifts).
+fn chosen(s: &SchoolSetup, sel: &ExportSelection) -> Vec<(u8, String, Vec<usize>)> {
+    let m = &s.master;
+    let on = |i: usize| s.shifts[i].enabled;
+    let mut out = Vec::new();
+    for c in m.classes.iter().filter(|c| sel.classes.contains(&c.id)) {
+        out.push((0, c.name.trim().to_string(), s.shifts.iter().position(|x| x.id == c.shift).filter(|&i| on(i)).into_iter().collect()));
+    }
+    for t in m.teachers.iter().filter(|t| sel.teachers.contains(&t.id)) {
+        out.push((1, t.name.trim().to_string(), (0..s.shifts.len()).filter(|&i| on(i) && t.shifts.contains(&s.shifts[i].id)).collect()));
+    }
+    for r in m.rooms.iter().filter(|r| sel.rooms.contains(&r.id)) {
+        out.push((2, r.name.trim().to_string(), (0..s.shifts.len()).filter(|&i| on(i)).collect()));
+    }
+    out
+}
+
+fn belongs(kind: u8, name: &str, q: &SessionRow, class_names: &[String]) -> bool {
+    match kind {
+        0 => q.classes.iter().any(|c| class_matches(c, name, class_names)),
+        1 => q.teachers.iter().any(|t| t == name),
+        _ => q.room.as_deref() == Some(name),
+    }
+}
+
+fn cell_label(kind: u8, q: &SessionRow, sep: &str) -> String {
+    let room = q.room.as_ref().map_or(String::new(), |r| format!(" · {r}"));
+    match kind {
+        0 => format!("{}{sep}{}{room}", q.subject, q.teachers.join(", ")),
+        1 => format!("{}{sep}{}{room}", q.subject, q.classes.join(", ")),
+        _ => format!("{}{sep}{} · {}", q.subject, q.classes.join(", "), q.teachers.join(", ")),
+    }
+}
+
+/// The chosen timetables as one CSV file: a block per class, teacher or room (and shift), and the
+/// master timetable, each with a title row, a header row and one row per period with its times.
+/// UTF-8 with a byte-order mark so Excel shows accents correctly.
+pub fn timetables_csv(s: &SchoolSetup, sel: &ExportSelection) -> Result<String, String> {
     let rows = session_rows(s);
     if rows.is_empty() {
         return Err("There is no timetable to export yet. Build one first.".into());
+    }
+    if sel.is_empty() {
+        return Err("Nothing is chosen. Tick something under \"What to print\".".into());
+    }
+    let class_names: Vec<String> = s.master.classes.iter().map(|c| c.name.trim().to_string()).collect();
+    let days: Vec<usize> = (0..7).filter(|&d| s.days[d].working).collect();
+    let mut w = csv::WriterBuilder::new().flexible(true).from_writer(Vec::new());
+    let mut put = |rec: Vec<String>| w.write_record(&rec).map_err(|e| e.to_string());
+    let kinds = ["Class", "Teacher", "Room"];
+    let mut any = false;
+    for (kind, name, shifts) in chosen(s, sel) {
+        for sh in shifts {
+            let shift = &s.shifts[sh];
+            if !rows.iter().any(|q| q.shift == shift.name && belongs(kind, &name, q, &class_names)) {
+                continue;
+            }
+            any = true;
+            put(vec![format!("{}: {name}", kinds[kind as usize]), format!("{} shift", shift.name)])?;
+            put(["Period".to_string(), "Time".to_string()].into_iter().chain(days.iter().map(|&d| s.days[d].name.clone())).collect())?;
+            let periods = days.iter().map(|&d| shift.days[d].len()).max().unwrap_or(0);
+            for p in 0..periods {
+                let mut rec = vec![(p + 1).to_string(), period_times(s, shift, &days, p).join("; ")];
+                for &d in &days {
+                    if p >= shift.days[d].len() {
+                        rec.push("-".into());
+                        continue;
+                    }
+                    let here: Vec<String> = rows
+                        .iter()
+                        .filter(|q| q.day == d && q.shift == shift.name && belongs(kind, &name, q, &class_names) && (p as u8 + 1) >= q.period && (p as u8 + 1) < q.period + q.length as u8)
+                        .map(|q| if q.period as usize == p + 1 { cell_label(kind, q, " · ") } else { format!("{} (continued)", q.subject) })
+                        .collect();
+                    rec.push(here.join(" / "));
+                }
+                put(rec)?;
+            }
+            put(vec![String::new()])?;
+        }
+    }
+    if sel.master {
+        for sh in (0..s.shifts.len()).filter(|&i| s.shifts[i].enabled) {
+            let shift = &s.shifts[sh];
+            let classes: Vec<&crate::master::Class> = s.master.classes.iter().filter(|c| c.shift == shift.id).collect();
+            if classes.is_empty() {
+                continue;
+            }
+            any = true;
+            put(vec!["Master timetable".into(), format!("{} shift", shift.name)])?;
+            let mut head = vec!["Class".to_string()];
+            let mut times = vec!["Time".to_string()];
+            for &d in &days {
+                for (p, t) in shift.days[d].iter().enumerate() {
+                    head.push(format!("{} {}", short_day(&s.days[d].name), p + 1));
+                    times.push(format!("{}–{}", t.start, t.end));
+                }
+            }
+            put(head)?;
+            put(times)?;
+            for c in classes {
+                let mut rec = vec![c.short_name.trim().to_string()];
+                for &d in &days {
+                    for p in 0..shift.days[d].len() {
+                        let here: Vec<String> = rows
+                            .iter()
+                            .filter(|q| q.day == d && q.shift == shift.name && q.classes.iter().any(|n| class_matches(n, c.name.trim(), &class_names)) && (p as u8 + 1) >= q.period && (p as u8 + 1) < q.period + q.length as u8)
+                            .map(|q| format!("{} {}", q.subject_short, q.teacher_shorts.join("/")))
+                            .collect();
+                        rec.push(here.join(" / "));
+                    }
+                }
+                put(rec)?;
+            }
+            put(vec![String::new()])?;
+        }
+    }
+    if !any {
+        return Err("The chosen timetables have no lessons yet.".into());
+    }
+    let bytes = w.into_inner().map_err(|e| e.to_string())?;
+    // The CSV writer marks a row with one empty cell as `""`; between blocks a plain empty line reads better.
+    let text: Vec<&str> = std::str::from_utf8(&bytes).map_err(|e| e.to_string())?.split('\n').map(|l| if l == "\"\"" { "" } else { l }).collect();
+    Ok(format!("\u{FEFF}{}", text.join("\n")))
+}
+
+pub fn write_excel(s: &SchoolSetup, path: &std::path::Path, sel: &ExportSelection) -> Result<(), String> {
+    let rows = session_rows(s);
+    if rows.is_empty() {
+        return Err("There is no timetable to export yet. Build one first.".into());
+    }
+    if sel.is_empty() {
+        return Err("Nothing is chosen. Tick something under \"What to print\".".into());
     }
     let g = Grid { s, rows: &rows };
     let class_names: Vec<String> = s.master.classes.iter().map(|c| c.name.trim().to_string()).collect();
@@ -215,8 +385,8 @@ pub fn write_excel(s: &SchoolSetup, path: &std::path::Path) -> Result<(), String
         x(ws.set_freeze_panes(1, 0))?;
     }
 
-    // Master: one row per class, a column per day and period.
-    {
+    // Master: one row per class, a column per day and period (with its times).
+    if sel.master {
         let ws = wb.add_worksheet();
         x(ws.set_name("Master"))?;
         let head = Format::new().set_bold().set_align(FormatAlign::Center).set_background_color(Color::RGB(0x18343F)).set_font_color(Color::White).set_border(FormatBorder::Thin);
@@ -232,11 +402,14 @@ pub fn write_excel(s: &SchoolSetup, path: &std::path::Path) -> Result<(), String
                 if n == 0 { continue; }
                 if n > 1 { x(ws.merge_range(top + 1, col, top + 1, col + n - 1, &s.days[d].name, &head))?; } else { x(ws.write_string_with_format(top + 1, col, &s.days[d].name, &head))?; }
                 for p in 0..n {
-                    x(ws.write_string_with_format(top + 2, col + p, (p + 1).to_string(), &head))?;
+                    let t = &sh.days[d][p as usize];
+                    x(ws.write_string_with_format(top + 2, col + p, format!("{}\n{}–{}", p + 1, t.start, t.end), &head.clone().set_text_wrap()))?;
+                    x(ws.set_column_width(col + p, 12))?;
                 }
                 col += n;
             }
             x(ws.write_string_with_format(top + 2, 0, "", &head))?;
+            x(ws.set_row_height(top + 2, 30))?;
             let mut r = top + 3;
             for c in m.classes.iter().filter(|c| c.shift == sh.id) {
                 x(ws.write_string_with_format(r, 0, &c.short_name, &Format::new().set_bold().set_border(FormatBorder::Thin)))?;
@@ -261,34 +434,22 @@ pub fn write_excel(s: &SchoolSetup, path: &std::path::Path) -> Result<(), String
         }
     }
 
-    // One sheet each for classes, teachers and rooms, a block per name.
-    let classes: Vec<(String, String)> = m.classes.iter().map(|c| (c.name.trim().to_string(), c.shift.clone())).collect();
-    for (sheet, kind) in [("Classes", 0), ("Teachers", 1), ("Rooms", 2)] {
+    // One sheet each for the chosen classes, teachers and rooms, a block per name.
+    let picked = chosen(s, sel);
+    for (sheet, kind) in [("Classes", 0u8), ("Teachers", 1), ("Rooms", 2)] {
+        let names: Vec<&(u8, String, Vec<usize>)> = picked.iter().filter(|(k, name, _)| *k == kind && rows.iter().any(|q| belongs(kind, name, q, &class_names))).collect();
+        if names.is_empty() {
+            continue;
+        }
         let ws = wb.add_worksheet();
         x(ws.set_name(sheet))?;
         let mut top = 0u32;
-        let names: Vec<(String, Vec<usize>)> = match kind {
-            0 => classes.iter().map(|(n, sh)| (n.clone(), s.shifts.iter().position(|x| &x.id == sh).into_iter().collect())).collect(),
-            1 => m.teachers.iter().map(|t| (t.name.trim().to_string(), (0..s.shifts.len()).filter(|&i| s.shifts[i].enabled && t.shifts.contains(&s.shifts[i].id)).collect())).collect(),
-            _ => m.rooms.iter().map(|r| (r.name.trim().to_string(), g.shift_ids())).collect(),
-        };
-        for (name, shifts) in names {
-            let mine = |q: &SessionRow| match kind {
-                0 => q.classes.iter().any(|c| class_matches(c, &name, &class_names)),
-                1 => q.teachers.contains(&name),
-                _ => q.room.as_deref() == Some(name.as_str()),
-            };
-            if !rows.iter().any(|q| mine(q)) {
-                continue;
-            }
-            let label = |q: &SessionRow| match kind {
-                0 => format!("{}\n{}{}", q.subject, q.teachers.join(", "), q.room.as_ref().map_or(String::new(), |r| format!(" · {r}"))),
-                1 => format!("{}\n{}{}", q.subject, q.classes.join(", "), q.room.as_ref().map_or(String::new(), |r| format!(" · {r}"))),
-                _ => format!("{}\n{} · {}", q.subject, q.classes.join(", "), q.teachers.join(", ")),
-            };
-            for sh in shifts {
+        for (_, name, shifts) in names {
+            let mine = |q: &SessionRow| belongs(kind, name, q, &class_names);
+            let label = |q: &SessionRow| cell_label(kind, q, "\n");
+            for &sh in shifts {
                 if rows.iter().any(|q| q.shift == s.shifts[sh].name && mine(q)) {
-                    top = g.block(ws, top, &name, sh, &mine, &label)?;
+                    top = g.block(ws, top, name, sh, &mine, &label)?;
                 }
             }
         }
@@ -334,7 +495,7 @@ mod tests {
         s.timetable.as_mut().unwrap().cards[1].length = 0;
         assert_eq!(session_rows(&s).len(), n - 2);
         let f = std::env::temp_dir().join(format!("tw-damaged-{}.xlsx", std::process::id()));
-        write_excel(&s, &f).unwrap(); // must not panic either
+        write_excel(&s, &f, &ExportSelection::everything(&s)).unwrap(); // must not panic either
         let _ = std::fs::remove_file(&f);
     }
 
@@ -368,12 +529,78 @@ mod tests {
         assert!(recs.iter().all(|r| r.len() == 10 && !r[4].is_empty() && r[5].parse::<u32>().is_ok()));
     }
 
+    /// The sample school with an earlier Friday (period 1 starts at 07:30).
+    fn built_with_short_friday() -> SchoolSetup {
+        let mut s = built();
+        let fri = &mut s.shifts[0].days[4][0];
+        fri.start = "07:30".into();
+        fri.end = "08:05".into();
+        s
+    }
+    fn only_class(s: &SchoolSetup, name: &str) -> ExportSelection {
+        ExportSelection { classes: vec![s.master.classes.iter().find(|c| c.name == name).unwrap().id.clone()], ..Default::default() }
+    }
+
+    #[test]
+    fn timetables_csv_has_a_block_per_timetable_with_each_days_times() {
+        let s = built_with_short_friday();
+        let text = timetables_csv(&s, &only_class(&s, "Grade 6 A")).unwrap();
+        assert!(text.starts_with('\u{FEFF}'));
+        let lines: Vec<&str> = text.trim_start_matches('\u{FEFF}').lines().collect();
+        assert_eq!(lines[0], "Class: Grade 6 A,Morning shift");
+        assert_eq!(lines[1], "Period,Time,Monday,Tuesday,Wednesday,Thursday,Friday");
+        assert!(lines[2].starts_with("1,08:00–08:40; Fri 07:30–08:05,"), "{}", lines[2]);
+        assert!(lines[3].starts_with("2,08:40–09:20,"), "{}", lines[3]);
+        assert_eq!(lines.len(), 2 + 7 + 1, "title, header, 7 periods, a blank line");
+        assert_eq!(lines[9], "", "an empty line between blocks");
+        assert!(lines[8].ends_with(",-"), "Friday has 5 periods: {}", lines[8]);
+        // every lesson of 6A is in the block: 27 sessions (the double counts once, plus its "continued")
+        let cells: Vec<&str> = lines[2..9].iter().flat_map(|l| l.split(',').skip(2)).filter(|c| !c.is_empty() && *c != "-").collect();
+        assert_eq!(cells.iter().filter(|c| !c.contains("(continued)")).count(), 27);
+        assert_eq!(cells.iter().filter(|c| c.contains("(continued)")).count(), 1);
+        assert!(!text.contains("Teacher:") && !text.contains("Master timetable"));
+
+        // everything: teachers, rooms and the master timetable with its times
+        let all = timetables_csv(&s, &ExportSelection::everything(&s)).unwrap();
+        for want in ["Teacher: Bilal Ahmed,Morning shift", "Room: Computer Lab,Morning shift", "Master timetable,Morning shift", "Class,Mon 1,Mon 2,", "Time,08:00–08:40,08:40–09:20,"] {
+            assert!(all.contains(want), "missing {want}");
+        }
+        assert!(all.contains(",07:30–08:05,"), "Friday's own time in the master header");
+        assert!(all.lines().any(|l| l.starts_with("6A,") && l.contains("ENG ")));
+        // nothing chosen
+        assert!(timetables_csv(&s, &ExportSelection::default()).unwrap_err().contains("Nothing is chosen"));
+    }
+
+    #[test]
+    fn excel_follows_the_selection_and_shows_each_days_times() {
+        use calamine::{open_workbook, Reader, Xlsx};
+        let s = built_with_short_friday();
+        let p = std::env::temp_dir().join(format!("tw-export-sel-{}.xlsx", std::process::id()));
+        write_excel(&s, &p, &only_class(&s, "Grade 6 A")).unwrap();
+        let mut wb: Xlsx<_> = open_workbook(&p).unwrap();
+        assert_eq!(wb.sheet_names(), vec!["Sessions", "Classes"]);
+        let text: Vec<String> = wb.worksheet_range("Classes").unwrap().rows().flat_map(|r| r.iter().map(|c| c.to_string())).collect();
+        assert!(text.iter().any(|t| t == "Grade 6 A · Morning shift"));
+        assert!(!text.iter().any(|t| t.starts_with("Grade 6 B")));
+        assert!(text.iter().any(|t| t == "1\n08:00–08:40\nFri 07:30–08:05"), "{text:?}");
+        assert!(text.iter().any(|t| t == "2\n08:40–09:20"));
+        // master only
+        write_excel(&s, &p, &ExportSelection { master: true, ..Default::default() }).unwrap();
+        let mut wb: Xlsx<_> = open_workbook(&p).unwrap();
+        assert_eq!(wb.sheet_names(), vec!["Sessions", "Master"]);
+        let m: Vec<String> = wb.worksheet_range("Master").unwrap().rows().flat_map(|r| r.iter().map(|c| c.to_string())).collect();
+        assert!(m.iter().any(|t| t == "1\n08:00–08:40") && m.iter().any(|t| t == "1\n07:30–08:05"));
+        assert!(write_excel(&s, &p, &ExportSelection::default()).unwrap_err().contains("Nothing is chosen"));
+        let _ = std::fs::remove_file(&p);
+    }
+
     #[test]
     fn nothing_to_export_before_a_timetable_exists() {
         let s = SchoolSetup::default_new("Empty");
         assert!(session_rows(&s).is_empty());
         let p = std::env::temp_dir().join(format!("tw-empty-{}.xlsx", std::process::id()));
-        assert!(write_excel(&s, &p).unwrap_err().contains("Build one first"));
+        assert!(write_excel(&s, &p, &ExportSelection::everything(&s)).unwrap_err().contains("Build one first"));
+        assert!(timetables_csv(&s, &ExportSelection::everything(&s)).unwrap_err().contains("Build one first"));
     }
 
     #[test]
@@ -381,7 +608,7 @@ mod tests {
         use calamine::{open_workbook, Reader, Xlsx};
         let s = built();
         let p = std::env::temp_dir().join(format!("tw-export-{}.xlsx", std::process::id()));
-        write_excel(&s, &p).unwrap();
+        write_excel(&s, &p, &ExportSelection::everything(&s)).unwrap();
         let mut wb: Xlsx<_> = open_workbook(&p).unwrap();
         assert_eq!(wb.sheet_names(), vec!["Sessions", "Master", "Classes", "Teachers", "Rooms"]);
         let sessions = wb.worksheet_range("Sessions").unwrap();

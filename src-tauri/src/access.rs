@@ -29,6 +29,11 @@ impl Approved {
         self.folders.lock().unwrap().insert(p.into());
     }
 
+    /// Was this folder chosen by the person in a folder dialog?
+    pub fn folder_allowed(&self, p: &std::path::Path) -> bool {
+        self.folders.lock().unwrap().contains(p)
+    }
+
     /// The path as a `PathBuf` if it was chosen by the person; otherwise a plain message.
     pub fn check(&self, path: &str) -> Result<PathBuf, String> {
         let p = PathBuf::from(path);

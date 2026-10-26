@@ -30,6 +30,32 @@ export interface Room {
 export interface MasterData {
   subjects: Subject[]; teachers: Teacher[]; classes: SchoolClass[]; buildings: Building[]; rooms: Room[]
 }
+export interface PeriodRef { shift: string; period: number }
+/** A teacher is away from `from` to `to` ("YYYY-MM-DD"); `periods` empty = whole days, else only those periods (part-day). */
+export interface Absence { id: string; teacherId: string; from: string; to: string; periods: PeriodRef[]; note: string }
+/** The decision for one lesson session on one date. */
+export interface Cover {
+  absenceId: string; date: string; lessonId: string; number: number; absentTeacher: string
+  coverTeacher: string | null; noCover: boolean; shift: string; period: number; length: number
+  /** Decided before the counts were last reset: still on the cover sheets, no longer counted. */
+  archived?: boolean
+}
+export interface Substitutions { absences: Absence[]; covers: Cover[]; countsFrom: string | null; countsYear: string | null }
+export interface Candidate { teacherId: string; name: string; sameSubject: boolean; covers: number; suitable: boolean; reasons: string[] }
+export interface Need {
+  absenceId: string; date: string; lessonId: string; number: number; absentTeacher: string; absentName: string
+  shift: string; shiftName: string; period: number; length: number; start: string; end: string
+  classes: string; subject: string; room: string; note: string
+  coverTeacher: string | null; coverName: string | null; noCover: boolean; warning: string | null
+  candidates: Candidate[]
+}
+export interface StaleCover { cover: Cover; title: string; coverName: string | null }
+export interface CoverDay { date: string; title: string; working: boolean; needs: Need[]; stale: StaleCover[]; hasTimetable: boolean }
+export interface TeacherCount { teacherId: string; name: string; covers: number; periods: number }
+export interface CoverCounts { year: string; since: string | null; total: number; totalPeriods: number; teachers: TeacherCount[]; newYear: boolean }
+export interface SheetRow { shift: string; period: string; start: string; end: string; classes: string; subject: string; absent: string; cover: string; covered: boolean; room: string; note: string }
+export interface SheetDay { date: string; title: string; rows: SheetRow[] }
+
 export interface SchoolSetup {
   name: string
   schoolType: string
@@ -38,6 +64,8 @@ export interface SchoolSetup {
   shifts: Shift[]
   master: MasterData
   lessons: Lesson[]
+  /** Absences and cover teachers; they never change the timetable. */
+  substitutions: Substitutions
   logo?: string | null
   links: Link[]
   settings: Settings
@@ -45,6 +73,13 @@ export interface SchoolSetup {
 }
 export interface Issue { level: 'error' | 'warning'; message: string }
 export interface Opened { path: string; setup: SchoolSetup }
+
+/** This computer's backup settings (kept with the program, not in the school file). */
+export interface BackupPrefs { folder: string | null; auto: boolean; keep: number }
+export interface Preferences { backup: BackupPrefs; splash: boolean }
+export interface BackupEntry { path: string; fileName: string; school: string; when: string; bytes: number }
+/** After a save: the file, and what happened to the automatic backup. */
+export interface SaveOutcome { path: string; backup: string | null; backupError: string | null }
 
 export const SCHOOL_TYPES: { id: string; label: string }[] = [
   { id: 'primary', label: 'Primary' },
@@ -79,10 +114,14 @@ export interface UnplacedCard { lessonId: string; number: number; title: string;
 export interface QualityItem { key: string; label: string; value: number; weight: number }
 export interface Quality { items: QualityItem[]; penalty: number }
 export interface Relaxation { kind: string; message: string }
+export interface SessionRef { lessonId: string; number: number }
+/** A locked lesson that stops others from being placed; `blocks` = how many sessions it is in the way of. */
+export interface LockInTheWay { sessions: SessionRef[]; title: string; when: string; blocks: number }
 export interface SolveReport {
   total: number; placed: number; unplaced: UnplacedCard[]; timetable: Timetable
   seconds: number; cancelled: boolean; timedOut: boolean
   qualityBefore: Quality; qualityAfter: Quality; relaxed: Relaxation[]
+  locksInTheWay: LockInTheWay[]
 }
 export interface ImproveReport { timetable: Timetable; qualityBefore: Quality; qualityAfter: Quality; seconds: number }
 export interface GenProgress { phase: 'placing' | 'improving'; placed: number; total: number; fraction: number }

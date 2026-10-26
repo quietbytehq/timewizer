@@ -1,11 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { FolderOpen, Plus } from 'lucide-react'
+import { FolderOpen, History, Plus } from 'lucide-react'
+import { api } from '@/lib/api'
+import type { BackupEntry } from '@/lib/types'
+import { BackupList } from './BackupPage'
 import { Button, Card, Field, inputCls, inputStyle } from './ui'
 
-export function Welcome({ busy, error, onNew, onOpen }:
-  { busy: boolean; error: string | null; onNew: (name: string) => void; onOpen: () => void }) {
+export function Welcome({ busy, error, onNew, onOpen, onRestore }:
+  { busy: boolean; error: string | null; onNew: (name: string) => void; onOpen: () => void; onRestore: (b: BackupEntry) => void }) {
   const [name, setName] = useState('')
+  const [hasFolder, setHasFolder] = useState(false)
+  const [showBackups, setShowBackups] = useState(false)
+  useEffect(() => { api.preferences().then(p => setHasFolder(!!p.backup.folder)).catch(() => {}) }, [])
   return (
     <main className="mx-auto max-w-3xl px-8 py-16">
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
@@ -39,8 +45,19 @@ export function Welcome({ busy, error, onNew, onOpen }:
           <h2 className="text-xl font-semibold">Open a school</h2>
           <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>Continue with a school file you saved earlier.</p>
           <Button className="mt-auto w-full" disabled={busy} onClick={onOpen}><FolderOpen size={16} /> Open file…</Button>
+          {hasFolder && (
+            <Button kind="ghost" className="mt-2 w-full" disabled={busy} onClick={() => setShowBackups(v => !v)} aria-expanded={showBackups}>
+              <History size={16} /> Restore from backup…
+            </Button>
+          )}
         </Card>
       </div>
+      {hasFolder && showBackups && (
+        <Card className="mt-5">
+          <h2 className="text-xl font-semibold">Restore from backup</h2>
+          <div className="mt-3"><BackupList onRestore={onRestore} /></div>
+        </Card>
+      )}
     </main>
   )
 }
