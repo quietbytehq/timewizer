@@ -3,7 +3,7 @@
 # (made by flatpak-builder-tools, see update-sources.sh).
 id: io.github.quietbytehq.timewizer
 runtime: org.gnome.Platform
-runtime-version: '49'   # use the newest GNOME runtime that Flathub supports
+runtime-version: '51'
 sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
@@ -36,9 +36,9 @@ modules:
       - npm run build
       - cargo build --release --offline --locked --manifest-path src-tauri/Cargo.toml --bin timewizer --features tauri/custom-protocol
       - install -Dm755 src-tauri/target/release/timewizer /app/bin/timewizer
-      # "@@ %f @@" lets Flatpak hand a double-clicked school file to the app.
-      - sed 's|^Exec=.*|Exec=timewizer @@ %f @@|' packaging/linux/io.github.quietbytehq.timewizer.desktop > /tmp/timewizer.desktop
-      - install -Dm644 /tmp/timewizer.desktop /app/share/applications/io.github.quietbytehq.timewizer.desktop
+      # Flatpak adds file forwarding (@@ %f @@) itself on export, so a double-clicked school file reaches the app.
+      - sed 's|^Exec=.*|Exec=timewizer %f|' packaging/linux/io.github.quietbytehq.timewizer.desktop > timewizer.desktop
+      - install -Dm644 timewizer.desktop /app/share/applications/io.github.quietbytehq.timewizer.desktop
       - install -Dm644 packaging/linux/io.github.quietbytehq.timewizer.metainfo.xml /app/share/metainfo/io.github.quietbytehq.timewizer.metainfo.xml
       - install -Dm644 packaging/linux/io.github.quietbytehq.timewizer.xml /app/share/mime/packages/io.github.quietbytehq.timewizer.xml
       - install -Dm644 assets/timewizer-logo.svg /app/share/icons/hicolor/scalable/apps/io.github.quietbytehq.timewizer.svg
@@ -51,6 +51,6 @@ modules:
       - type: git
         url: https://github.com/quietbytehq/timewizer.git
         tag: v0.2.0
-        commit: REPLACE-WITH-THE-FULL-COMMIT-ID-OF-TAG-v0.2.0
+        commit: 6360808fcb09a581a6f4ad11a1d89376127e628c
       - cargo-sources.json
       - node-sources.json

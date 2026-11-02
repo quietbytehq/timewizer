@@ -18,5 +18,5 @@ PY
 cp packaging/flatpak/cargo-sources.json packaging/flatpak/node-sources.json "$OUT"/
 # the "dir" source path is relative to the manifest, so point it at this tree
 sed -i "s|path: ../../..|path: $(pwd)|" "$OUT/manifest.yml"
-flatpak-builder --user --install --force-clean --install-deps-from=flathub "$OUT/build" "$OUT/manifest.yml"
+flatpak-builder --user --state-dir=/tmp/timewizer-flatpak-state --install --force-clean --install-deps-from=flathub "$OUT/build" "$OUT/manifest.yml"
 echo "Installed. Run it with: flatpak run io.github.quietbytehq.timewizer"
